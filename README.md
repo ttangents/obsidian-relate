@@ -98,6 +98,8 @@ Outside your vault, Relate keeps on each device:
 
 Inside your vault, Relate keeps only its settings file in its plugin folder, and changes notes only as this page describes.
 
+Relate lists every note in the vault to keep its index of links, and reads notes' text for search. It writes to the clipboard only when you run **Copy a table of notes linked to this note**, and it never reads the clipboard.
+
 ## Settings
 
 - **Relationships.** Each one is a pair of property names, edited in its own window: nothing changes until you press Save. A relationship can also name the notes that need a link, by folder or by tag, such as every note in `Research/Notes` needing a `project`. Check links lists the notes that have none, each with a button to choose one. Use the same name on both sides for a link that reads the same both ways, such as `related`. Mark a side "only one" when a note can have a single value, such as `parent`. Adding a second value then moves the note and tells you.

@@ -1,7 +1,7 @@
 {
 	"id": "relate",
 	"name": "Relate",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "1.13.1",
 	"description": "Link notes both ways through ordinary properties, then browse and search them by relationship, date or meaning.",
 	"author": "Les Joseph",

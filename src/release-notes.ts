@@ -40,6 +40,16 @@ export const COMPANION = {
 
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
 	{
+		version: "1.0.1",
+		date: "2026-10-22",
+		headline: "Small fixes from Obsidian's review.",
+		announce: false,
+		fixed: [
+			"Relate's stylesheet no longer uses !important. Hidden parts of the interface now use Obsidian's own show and hide.",
+			"The README says when Relate uses the clipboard, and that it never reads it.",
+		],
+	},
+	{
 		version: "1.0.0",
 		date: "2026-10-22",
 		headline: "The first release of Relate in Obsidian's community directory.",
