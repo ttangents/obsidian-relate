@@ -169,14 +169,15 @@ export class AdoptModal extends Modal {
 
 	private row(parent: HTMLElement, c: Candidate): void {
 		const box = parent.createDiv({ cls: "relate-candidate" });
-		const detail = createDiv({ cls: "relate-candidate-detail relate-hidden" });
+		const detail = createDiv({ cls: "relate-candidate-detail" });
+		detail.hide();
 		new Setting(box)
 			.setName(c.prop)
 			.setDesc(`${plural(c.links, "link", "links")} in ${plural(c.notes, "note", "notes")}`)
 			.addToggle((t) =>
 				t.setValue(c.chosen).onChange((v) => {
 					c.chosen = v;
-					detail.toggleClass("relate-hidden", !v);
+					detail.toggle(v);
 					this.schedulePreview();
 				})
 			);

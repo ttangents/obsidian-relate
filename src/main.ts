@@ -616,7 +616,7 @@ export default class RelatePlugin extends Plugin {
 			s.state === "preparing" ? "Relate: preparing model" :
 			s.state === "indexing" ? `Relate: indexing ${s.done} of ${s.total}` : "";
 		el.setText(text);
-		el.toggleClass("relate-hidden", !text);
+		el.toggle(!!text);
 	}
 
 	/** Turns on search by meaning, asking first when this device has no model yet. */

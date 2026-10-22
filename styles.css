@@ -1,6 +1,5 @@
 /* Relate uses Obsidian's own classes and theme variables, so it follows the active theme. */
 
-.relate-hidden { display: none !important; }
 .relate-muted { color: var(--text-muted); }
 
 /* ---------- Connections panel ----------

@@ -44,7 +44,7 @@ export class RelationModal extends Modal {
 			rule?.setName(r.property ? `Notes that need a link in ${r.property}` : "Notes that need a link");
 			oneFirst.setName(r.property ? `Only one ${r.property} per note` : "Only one per note");
 			oneSecond.setName(r.inverse ? `Only one ${r.inverse} per note` : "Only one per note");
-			oneSecond.settingEl.toggleClass("relate-hidden", same());
+			oneSecond.settingEl.toggle(!same());
 			this.check();
 		};
 		new Setting(contentEl)
