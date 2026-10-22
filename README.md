@@ -88,8 +88,8 @@ Relate shows no ads, collects no telemetry and needs no account. It reads your n
 
 Relate connects to the internet only in two cases, and only after you turn on search by meaning:
 
-- **The built-in model.** Relate asks on each device before it downloads the model, about 30 MB, from [Hugging Face](https://huggingface.co/minishlab/potion-base-8M) at a fixed version. It checks each file against its published SHA-256 fingerprint and saves nothing that does not match.
-- **Your own server.** If you choose **My own server**, Relate sends the text of your notes and searches to the address you enter, and to no other. Each device asks before it starts.
+- **The built-in model, from Hugging Face.** Search by meaning needs a small language model to turn notes into numbers it can compare. Relate asks on each device before it downloads the model, about 30 MB, from [Hugging Face](https://huggingface.co/minishlab/potion-base-8M) at a fixed version. It checks each file against its published SHA-256 fingerprint and saves nothing that does not match. The model is data: Relate downloads no code.
+- **Your own server, if you choose one.** Some readers prefer a larger model than the built-in one. If you choose **My own server**, Relate sends the text of your notes and searches to the address you enter, and to no other, so that server can index them. Each device asks before it starts.
 
 Outside your vault, Relate keeps on each device:
 
