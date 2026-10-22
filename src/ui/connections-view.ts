@@ -28,12 +28,13 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /** One-line summary of the vault's link problems, or "" when there are none. */
-export function issueSummary(missing: number, choices: number, loops = 0): string {
+export function issueSummary(missing: number, choices: number, loops = 0, needs = 0): string {
 	const parts: string[] = [];
 	if (loops) parts.push(plural(loops, "loop", "loops"));
 	if (missing) parts.push(plural(missing, "one-way link", "one-way links"));
 	if (choices) parts.push(plural(choices, "choice to make", "choices to make"));
-	return parts.join(" and ");
+	if (needs) parts.push(needs === 1 ? "1 note that needs a link" : `${needs} notes that need a link`);
+	return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts.join("");
 }
 
 /**
@@ -275,8 +276,8 @@ export class ConnectionsView extends ItemView {
 	/** Vault-wide problems, kept apart from the note's own links so the count is not mistaken for this note's. */
 	private renderIssues(el: HTMLElement): void {
 		if (this.plugin.sync.busy) return;
-		const { missing, conflicts, loops } = this.plugin.sync.health();
-		const summary = issueSummary(missing.length, conflicts.length, loops.length);
+		const { missing, conflicts, loops, needs } = this.plugin.sync.health();
+		const summary = issueSummary(missing.length, conflicts.length, loops.length, needs.length);
 		if (!summary) return;
 		const row = activatable(el.createDiv({ cls: "tree-item-self is-clickable relate-issues" }));
 		const icon = row.createDiv({ cls: "tree-item-icon" });

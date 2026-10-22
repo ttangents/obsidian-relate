@@ -39,7 +39,35 @@ export interface DateChip {
 	start: number;
 	end: number;
 }
-export type Chip = RelationChip | ConnectedChip | DateChip;
+/** Notes with no link under a relationship property: "without project". */
+export interface MissingChip {
+	kind: "missing";
+	prop: string;
+	/** As shown and as written back into the query: "without project". */
+	label: string;
+	start: number;
+	end: number;
+}
+/** Notes in a folder or below it: "in Research/Notes". */
+export interface FolderChip {
+	kind: "folder";
+	path: string;
+	label: string;
+	start: number;
+	end: number;
+}
+/** Notes with a tag or a tag nested under it: "#draft". */
+export interface TagChip {
+	kind: "tag";
+	tag: string;
+	label: string;
+	start: number;
+	end: number;
+}
+export type Chip = RelationChip | ConnectedChip | DateChip | MissingChip | FolderChip | TagChip;
+
+/** Turns typed text into a folder path, or null when no folder fits. */
+export type FolderResolver = (span: string) => string | null;
 
 export interface ParsedQuery {
 	chips: Chip[];
@@ -99,7 +127,13 @@ function blank(text: string, start: number, end: number): string {
  * `labels` maps lowercase relationship labels ("children", "part of") to property names.
  * Chip positions refer to the original query, so the interface can remove a chip by cutting its span.
  */
-export function parseQuery(query: string, labels: Map<string, string>, resolve: Resolver, now: Date = new Date()): ParsedQuery {
+export function parseQuery(
+	query: string,
+	labels: Map<string, string>,
+	resolve: Resolver,
+	now: Date = new Date(),
+	folder: FolderResolver = () => null
+): ParsedQuery {
 	const chips: Chip[] = [];
 	let work = query;
 
@@ -176,10 +210,56 @@ export function parseQuery(query: string, labels: Map<string, string>, resolve: 
 		connRe.lastIndex = 0;
 	}
 
+	if (labels.size) {
+		const alt = [...labels.keys()]
+			.sort((a, b) => b.length - a.length)
+			.map((l) => escapeRe(l).replace(/\\? /g, "[\\s_-]+"))
+			.join("|");
+		const missRe = new RegExp(`\\b(?:without|missing|no)\\s+(?:any\\s+)?(${alt})\\b`, "gi");
+		let mm: RegExpExecArray | null;
+		while ((mm = missRe.exec(work))) {
+			const prop = labels.get(mm[1].toLowerCase().replace(/[\s_-]+/g, " ")) ?? "";
+			const end = mm.index + mm[0].length;
+			chips.push({ kind: "missing", prop, label: `without ${mm[1].toLowerCase()}`, start: mm.index, end });
+			work = blank(work, mm.index, end);
+			missRe.lastIndex = 0;
+		}
+	}
+
 	const date = findDate(work, now);
 	if (date) {
 		chips.push({ kind: "date", ...date });
 		work = blank(work, date.start, date.end);
+	}
+
+	// "in Research/Notes": after dates, so "in 2023" stays a date.
+	const inRe = /\bin\s+/gi;
+	let im: RegExpExecArray | null;
+	while ((im = inRe.exec(work))) {
+		const words = wordsAfter(work, im.index + im[0].length);
+		let found = false;
+		for (let n = words.length; n >= 1; n--) {
+			const end = words[n - 1][1];
+			const span = work.slice(words[0][0], end).replace(/[?.!,;]+$/, "");
+			const path = folder(span);
+			if (path === null) continue;
+			const stop = words[0][0] + span.length;
+			chips.push({ kind: "folder", path, label: `in ${path}`, start: im.index, end: stop });
+			work = blank(work, im.index, stop);
+			found = true;
+			break;
+		}
+		if (found) inRe.lastIndex = 0;
+	}
+
+	const tagRe = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
+	let tm: RegExpExecArray | null;
+	while ((tm = tagRe.exec(work))) {
+		const start = tm.index + tm[1].length;
+		const end = start + 1 + tm[2].length;
+		chips.push({ kind: "tag", tag: tm[2], label: `#${tm[2]}`, start, end });
+		work = blank(work, start, end);
+		tagRe.lastIndex = 0;
 	}
 
 	chips.sort((a, b) => a.start - b.start);

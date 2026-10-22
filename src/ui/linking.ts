@@ -211,8 +211,11 @@ export class LinkManyModal extends Modal {
 	}
 }
 
-/** Links each of several files to one chosen note, from a multi-selection in the file explorer. */
-export function linkSelected(plugin: RelatePlugin, files: TFile[]): void {
+/**
+ * Links each of several files to one chosen note, from a multi-selection in the file explorer or from search
+ * results. `after` runs once the links are written, with every note that changed.
+ */
+export function linkSelected(plugin: RelatePlugin, files: TFile[], after?: (changed: string[]) => void): void {
 	const notes = files.filter((f) => f.extension === "md");
 	if (!notes.length) return;
 	new SidePickerModal(plugin, notes[0], (side) => {
@@ -220,6 +223,7 @@ export function linkSelected(plugin: RelatePlugin, files: TFile[]): void {
 			const pairs = notes.filter((f) => f !== target).map((file) => ({ file, side, target }));
 			const out = await plugin.sync.connectMany(pairs, `Linked ${plural(pairs.length, "note", "notes")} to ${target.basename}`);
 			plugin.sync.report(out, `Linked ${plural(pairs.length, "note", "notes")} to ${target.basename}.`);
+			after?.([...new Set(out.applied.map((op) => op.path))]);
 		})()).open();
 	}, `Choose how to link ${plural(notes.length, "note", "notes")}`).open();
 }
@@ -244,5 +248,59 @@ export function linkMenu(plugin: RelatePlugin, file: TFile, evt: MouseEvent | Ke
 	else {
 		const r = (evt.target as HTMLElement).getBoundingClientRect();
 		menu.showAtPosition({ x: r.left, y: r.bottom });
+	}
+}
+
+/** Search results with a box each, all ticked, so the reader can leave some out before linking the rest. */
+export class LinkResultsModal extends Modal {
+	private chosen: Set<string>;
+	private button!: HTMLButtonElement;
+
+	constructor(private plugin: RelatePlugin, private files: TFile[], private after?: (changed: string[]) => void) {
+		super(plugin.app);
+		this.chosen = new Set(files.map((f) => f.path));
+		this.modalEl.addClass("relate-modal", "relate-link-many");
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		this.titleEl.setText("Link these notes");
+		contentEl.createDiv({
+			cls: "relate-modal-text",
+			text: "Untick any note you want to leave out. Next, choose the relationship and the note to link them to. One undo reverses the whole batch.",
+		});
+		const name = noteNamer(this.app.vault.getMarkdownFiles().map((f) => f.path));
+		const list = contentEl.createDiv({ cls: "relate-rows relate-link-many-list", attr: { role: "group", "aria-label": "Notes" } });
+		for (const f of this.files) {
+			const row = list.createEl("label", { cls: "relate-row relate-check-row" });
+			const box = row.createEl("input", { type: "checkbox" });
+			box.checked = true;
+			box.addEventListener("change", () => {
+				if (box.checked) this.chosen.add(f.path);
+				else this.chosen.delete(f.path);
+				this.update();
+			});
+			row.createSpan({ text: name(f.path) });
+			if (f.parent && !f.parent.isRoot()) row.createSpan({ cls: "relate-muted", text: f.parent.path });
+		}
+		const footer = contentEl.createDiv({ cls: "modal-button-container" });
+		footer.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+		this.button = footer.createEl("button", { cls: "mod-cta" });
+		this.button.addEventListener("click", () => {
+			const files = this.files.filter((f) => this.chosen.has(f.path));
+			this.close();
+			linkSelected(this.plugin, files, this.after);
+		});
+		this.update();
+	}
+
+	private update(): void {
+		const n = this.chosen.size;
+		this.button.setText(n ? `Link ${plural(n, "note", "notes")}…` : "Link");
+		this.button.disabled = n === 0;
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
 	}
 }

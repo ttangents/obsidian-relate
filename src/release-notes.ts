@@ -47,8 +47,9 @@ export const RELEASE_NOTES: readonly ReleaseNote[] = [
 		new: [
 			"When one note lists another in a relationship property, such as a project listing its notes, Relate adds the link back on the other note. The links stay in ordinary properties.",
 			"The connections panel shows the open note's relationships and lets you add or remove links. The relationship browser follows chains of links across columns.",
-			"Search understands relationships and dates, such as \"notes of Q3 Plan last month\", and shows how each result connects to the note you named.",
-			"Check links finds links recorded on one note only and fixes them, and every change Relate makes can be undone.",
+			"Search understands relationships and dates, such as \"notes of Q3 Plan last month\", and shows how each result connects to the note you named. It also finds notes without a relationship, such as \"without project in Research\".",
+			"Press Shift and Enter in search to link the results to a note in one step, with one undo.",
+			"Check links finds links recorded on one note only and fixes them. A relationship can also say which notes need a link, such as every note in a folder, and Check links lists the ones that have none.",
 			"Search by meaning, which is off until you turn it on, finds notes about an idea even when they use different words. It runs on your device.",
 		],
 		withCompanion: [

@@ -9,6 +9,11 @@ export interface Relation {
 	inverseOne: boolean;
 	/** Search can follow chains, e.g. children of children. */
 	chains: boolean;
+	/**
+	 * Notes that need at least one link in `property`: a folder path such as "Research/Notes", or a tag such as
+	 * "#paper". Check links lists the ones that have none. Empty or absent means no rule.
+	 */
+	required?: string;
 }
 
 export interface HistoryOp {
@@ -210,6 +215,7 @@ export function normalizeSettings(raw: unknown): { settings: RelateSettings; pro
 			propertyOne: r.propertyOne === true,
 			inverseOne: r.inverseOne === true,
 			chains: r.chains === true,
+			...(typeof r.required === "string" && r.required.trim() ? { required: r.required.trim() } : {}),
 		});
 	}
 

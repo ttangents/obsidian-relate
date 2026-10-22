@@ -11,6 +11,13 @@ export class TFile {
 	}
 }
 
+/** Tags as Obsidian reports them: frontmatter tags and inline tags, each with "#". */
+export function getAllTags(cache: { frontmatter?: Record<string, unknown> }): string[] {
+	const raw = cache.frontmatter?.tags;
+	const list = Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : [];
+	return list.filter((t): t is string => typeof t === "string").map((t) => `#${t.replace(/^#/, "")}`);
+}
+
 export function getLinkpath(link: string): string {
 	return link.split(/[#^|]/)[0];
 }

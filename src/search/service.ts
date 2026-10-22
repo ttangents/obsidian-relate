@@ -1,4 +1,4 @@
-import { TFile } from "obsidian";
+import { TFile, getAllTags } from "obsidian";
 import type RelatePlugin from "../main";
 
 /** What search needs from the plugin, and nothing more. */
@@ -170,7 +170,30 @@ export class SearchService {
 	}
 
 	parse(query: string): ParsedQuery {
-		return parseQuery(query, this.labels(), this.resolve);
+		return parseQuery(query, this.labels(), this.resolve, new Date(), this.folder);
+	}
+
+	/** The folder typed text names: its path, or a folder name that is not ambiguous. */
+	folder = (span: string): string | null => {
+		const key = span.trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+		if (!key) return null;
+		const folders = this.plugin.app.vault.getAllFolders(false);
+		const byPath = folders.find((f) => f.path.toLowerCase() === key);
+		if (byPath) return byPath.path;
+		const byName = folders.filter((f) => f.name.toLowerCase() === key);
+		return byName.length === 1 ? byName[0].path : null;
+	};
+
+	/** Notes with no link under `prop`, whichever note would record it. */
+	private withoutLinks(prop: string): Set<string> {
+		const side = this.plugin.sides().get(prop);
+		const out = new Set<string>();
+		if (!side) return out;
+		const index = this.plugin.index;
+		for (const f of this.plugin.app.vault.getMarkdownFiles()) {
+			if (!index.targets(f.path, side.prop).size && !index.incoming(f.path, side.inverse).size) out.add(f.path);
+		}
+		return out;
 	}
 
 	/**
@@ -237,6 +260,21 @@ export class SearchService {
 				if (chip.chain.length > 1 || chip.all) explain.push(chip);
 			} else if (chip.kind === "connected") {
 				narrow(this.plugin.connected(chip.note.path), `connected to ${chip.note.title}`);
+			} else if (chip.kind === "missing") {
+				narrow(this.withoutLinks(chip.prop), chip.label);
+			} else if (chip.kind === "folder") {
+				const prefix = `${chip.path}/`;
+				narrow(new Set(app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(prefix)).map((f) => f.path)), chip.label);
+			} else if (chip.kind === "tag") {
+				const want = chip.tag.toLowerCase();
+				const tagged = app.vault.getMarkdownFiles().filter((f) => {
+					const cache = app.metadataCache.getFileCache(f);
+					return (cache ? getAllTags(cache) ?? [] : []).some((t) => {
+						const tag = t.replace(/^#/, "").toLowerCase();
+						return tag === want || tag.startsWith(`${want}/`);
+					});
+				});
+				narrow(new Set(tagged.map((f) => f.path)), chip.label);
 			}
 		}
 		const date = parsed.chips.find((c) => c.kind === "date");

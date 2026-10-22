@@ -2,7 +2,7 @@ import { App, FuzzySuggestModal, Modal, Notice, Setting, SuggestModal, TFile, ge
 import type RelatePlugin from "../main";
 import type { Side } from "../settings";
 import { availablePresets, sidesOf, suggestInverse, type Relation } from "../settings";
-import { computeHealth, MapEdges } from "../health";
+import { computeHealth, MapEdges, type Need } from "../health";
 import { readEdges } from "../graph";
 import type { Conflict, Health, Loop, Missing } from "../sync";
 import { noteNamer } from "../links";
@@ -315,13 +315,14 @@ export class HealthModal extends Modal {
 		noteName = noteNamer(this.app.vault.getMarkdownFiles().map((f) => f.path));
 		const { contentEl } = this;
 		contentEl.empty();
-		if (!h.missing.length && !h.conflicts.length && !h.loops.length) {
-			contentEl.createDiv({ cls: "relate-modal-text", text: "Every link is recorded on both notes. There is nothing to fix." });
+		if (!h.missing.length && !h.conflicts.length && !h.loops.length && !h.needs.length) {
+			contentEl.createDiv({ cls: "relate-modal-text", text: "Every link is recorded on both notes, and every note has the links its rules ask for. There is nothing to fix." });
 			return;
 		}
 		if (h.loops.length) this.renderLoops(contentEl, h.loops);
 		if (h.missing.length) this.renderMissing(contentEl, h.missing);
 		if (h.conflicts.length) this.renderConflicts(contentEl, h.conflicts);
+		if (h.needs.length) this.renderNeeds(contentEl, h.needs);
 	}
 
 	private renderLoops(el: HTMLElement, loops: Loop[]): void {
@@ -373,6 +374,32 @@ export class HealthModal extends Modal {
 			row.createEl("code", { text: m.prop });
 		}
 		if (missing.length > 100) list.createDiv({ cls: "relate-row relate-muted", text: `${missing.length - 100} more not shown.` });
+	}
+
+	/** Notes a rule says need a link, each with a button to link it. */
+	private renderNeeds(el: HTMLElement, needs: Need[]): void {
+		new Setting(el).setName(needs.length === 1 ? "A note that needs a link" : "Notes that need a link").setHeading();
+		el.createDiv({
+			cls: "relate-modal-text",
+			text: "Your relationship settings say these notes should have a link, and they have none. Link each one, or change the rule in Relate's settings.",
+		});
+		const list = el.createDiv({ cls: "relate-rows" });
+		for (const n of needs.slice(0, 100)) {
+			const row = list.createDiv({ cls: "relate-row relate-conflict" });
+			const line = row.createDiv();
+			this.link(line, n.file);
+			line.appendText(` has no ${n.prop}. Rule: notes ${n.scope.startsWith("#") ? "tagged" : "in"} ${n.scope} need one.`);
+			const side = this.plugin.sides().get(n.prop);
+			const file = this.app.vault.getAbstractFileByPath(n.file);
+			if (!side || !(file instanceof TFile)) continue;
+			const buttons = row.createDiv({ cls: "relate-choices" });
+			buttons.createEl("button", { text: `Choose ${n.prop}…` }).addEventListener("click", () => {
+				new NotePickerModal(this.app, file, `Choose ${file.basename}'s ${n.prop}`, (target) => {
+					void this.plugin.connect(file, side, target).then(() => this.refresh());
+				}).open();
+			});
+		}
+		if (needs.length > 100) list.createDiv({ cls: "relate-row relate-muted", text: `${needs.length - 100} more not shown.` });
 	}
 
 	private renderConflicts(el: HTMLElement, conflicts: Conflict[]): void {

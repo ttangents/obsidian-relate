@@ -453,3 +453,13 @@ test("common setups exclude any whose property names are already in use", async 
 	assert.equal(left.length, PRESETS.length - 1);
 	assert.equal(validateRelations(PRESETS.map((p) => p.relation)).length, 0, "the presets never clash with each other");
 });
+
+test("a needs-a-link rule lists notes without the link until they get one", async () => {
+  const rule: Relation = { property: "project", inverse: "notes", propertyOne: false, inverseOne: false, chains: false, required: "Research" };
+  const { app, plugin } = setup([rule], { "Research/A.md": {}, "Research/B.md": { project: "[[Paper]]" }, "Other.md": {}, "Paper.md": { notes: "[[B]]" } });
+  await app.settle();
+  assert.deepEqual(plugin.sync.health().needs.map((n) => n.file), ["Research/A.md"]);
+  await plugin.sync.connect(f(app, "Research/A.md"), side(plugin, "project"), f(app, "Paper.md"));
+  await app.settle();
+  assert.deepEqual(plugin.sync.health().needs, []);
+});

@@ -31,6 +31,7 @@ function relationSummary(r: Relation): string {
 	if (r.propertyOne) bits.push(`one ${r.property} per note`);
 	if (r.inverseOne && r.inverse !== r.property) bits.push(`one ${r.inverse} per note`);
 	if (r.chains) bits.push("search follows chains");
+	if (r.required) bits.push(`notes ${r.required.startsWith("#") ? "tagged" : "in"} ${r.required} need one`);
 	const text = bits.join(" · ");
 	return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Any number of links on each side";
 }

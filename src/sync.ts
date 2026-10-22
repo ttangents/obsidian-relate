@@ -1,4 +1,4 @@
-import { Notice, TFile } from "obsidian";
+import { Notice, TFile, getAllTags } from "obsidian";
 import type RelatePlugin from "./main";
 
 /** What the sync engine needs from the plugin, and nothing more. */
@@ -9,7 +9,7 @@ export type SyncHost = Pick<
 import { readEdges, type Edges } from "./graph";
 import type { HistoryOp, Side } from "./settings";
 import type { AddOptions, AddResult } from "./writer";
-import { computeHealth, findLoops, pathUp, upStep, type Conflict, type Health, type Missing } from "./health";
+import { computeHealth, findLoops, findNeeds, pathUp, upStep, type Conflict, type Health, type Missing } from "./health";
 
 export type { Conflict, Health, Loop, Missing } from "./health";
 
@@ -177,6 +177,7 @@ export class SyncEngine {
 	/** Called for every metadata change. */
 	onChanged(file: TFile): void {
 		if (this.stopped || file.extension !== "md") return;
+		this.metaChanges++;
 		const pending = this.inflight.get(file.path);
 		if (pending && --pending.count <= 0) this.inflight.delete(file.path);
 		if (this.unparsed(file)) return;
@@ -480,13 +481,27 @@ export class SyncEngine {
 	// ----------------------------------------------------------------- checking and repair
 
 	/** Finds one-way links and broken "only one" rules. Cached until the links change. */
+	/** Counts metadata changes, so "needs a link" results follow moved notes and changed tags. */
+	private metaChanges = 0;
+
 	health(only?: Set<string>): Health {
-		const key = `${this.plugin.index.revision}|${JSON.stringify(this.plugin.settings.relations)}`;
+		const key = `${this.plugin.index.revision}|${this.metaChanges}|${JSON.stringify(this.plugin.settings.relations)}`;
 		if (!only && this.healthCache?.key === key) return this.healthCache.value;
 		const index = this.plugin.index;
 		const value = computeHealth(index, this.plugin.sides(), only);
 		const relations = this.plugin.relationsValid() ? this.plugin.settings.relations : [];
-		value.loops = findLoops(index, (p, prop) => index.incoming(p, prop), relations.filter((r) => !only || only.has(r.property) || only.has(r.inverse)));
+		const scoped = relations.filter((r) => !only || only.has(r.property) || only.has(r.inverse));
+		value.loops = findLoops(index, (p, prop) => index.incoming(p, prop), scoped);
+		const meta = this.plugin.app.metadataCache;
+		// Reading every note's tags costs a pass over the vault, so it happens only when a rule exists.
+		value.needs = !scoped.some((r) => r.required) ? [] : findNeeds(
+			this.plugin.app.vault.getMarkdownFiles().map((f) => {
+				const cache = meta.getFileCache(f);
+				return { path: f.path, tags: (cache ? getAllTags(cache) ?? [] : []).map((t) => t.replace(/^#/, "")) };
+			}),
+			scoped,
+			(path, prop, inverse) => index.targets(path, prop).size > 0 || index.incoming(path, inverse).size > 0
+		);
 		if (!only) this.healthCache = { key, value };
 		return value;
 	}
