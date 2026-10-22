@@ -1,0 +1,28 @@
+{
+  "name": "relate",
+  "version": "1.0.0",
+  "description": "Link notes both ways through ordinary properties, then browse and search them by relationship, date or meaning.",
+  "private": true,
+  "author": "Les Joseph",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc -p . && tsc -p test",
+    "lint": "eslint .",
+    "bundle": "node esbuild.config.mjs production",
+    "build": "npm run typecheck && npm run lint && npm run bundle",
+    "test": "tsx --test test/pure.test.ts test/paths.test.ts test/semantic.test.ts && esbuild test/sync.test.ts --bundle --platform=node --format=esm --alias:obsidian=./test/fake-obsidian.ts --outfile=.test/sync.mjs --log-level=warning && node --test .test/sync.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@eslint/json": "^0.14.0",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "^0.4.2",
+    "globals": "^17.13.0",
+    "obsidian": "^1.14.4",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.72.0"
+  }
+}
