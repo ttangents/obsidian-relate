@@ -33,10 +33,13 @@ Relate requires Obsidian 1.13.1 or later and works on desktop and mobile.
   - `children of X`, `X's children`, `children: X`
   - `all children of X` follows chains when the relationship allows it
   - `connected to X` covers every relationship
+  - `without project` finds notes with no link in a relationship property
+  - `in Research/Notes` keeps notes in a folder and its subfolders, and `#draft` keeps notes with a tag
   - phrases nest: `residents of all places of Gondor` finds everyone whose home lies anywhere in Gondor
   - dates: `today`, `yesterday`, `this week`, `last month`, `last 10 days`, `in 2026-09`, `since 2026-01-01`, `before 2026-06`
 
   Each phrase Relate understands appears as a chip under the search box. Click a chip to switch it to another relationship, to follow or stop following a chain, or to remove it. When a result is more than one link away from the note you named, Relate shows the chain under the result, such as `Boromir → home: Minas Tirith → region: Gondor`. Each note in the chain is a link.
+- **Link search results.** Press Shift and Enter in search to link the results to a note. Untick any you want to leave out, choose the relationship and the note, and Relate links them in one batch with one undo. Search then opens again, so you see the result of the change. For example, search `without project in Research/Notes`, link the notes to a paper, and they drop out of the list.
 - **How two notes are connected.** Run **How is this note connected to another note?**, or press the button in the browser's preview, and pick a second note. Relate lists up to five short chains of links between the two, shortest first. You can limit the chains to one relationship, and skip busy notes such as an index that links to everything.
 - **Tables of linked notes.** **Insert a table of notes linked to this note** adds a Bases table at the cursor that lists the notes on one side of a relationship, such as a project's notes. The table is ordinary Bases syntax, so it keeps working without Relate. **Copy a table of notes linked to this note** puts the same block on the clipboard instead.
 
@@ -72,7 +75,7 @@ After an update, a line at the top of the Connections panel opens the release no
 
 - Relate writes only plain list-of-links properties through Obsidian's own frontmatter API, and adds no custom syntax or hidden IDs. It edits the note body only when you ask it to insert a table, and that table is a standard Bases block.
 - If you uninstall Relate, every link stays where it is and reads correctly. New edits simply stop updating the other note. Reinstall and run **Check links** to catch up.
-- **Check links** finds links recorded on one note only, and any "only one" property that lists, or is claimed by, more than one note. It adds missing links but never removes one unless you choose between competing notes, and that choice can be undone. Before applying anything, it rechecks the notes and skips proposals that no longer apply.
+- **Check links** finds links recorded on one note only, any "only one" property that lists, or is claimed by, more than one note, and notes that a relationship says need a link but have none. It adds missing links but never removes one unless you choose between competing notes, and that choice can be undone. Before applying anything, it rechecks the notes and skips proposals that no longer apply.
 - Relate makes its changes one at a time and records each one as it happens. If a batch stops partway, the changes it did make are listed under **Recent changes** and can be undone. If undo cannot reverse a change, because a note is gone or a property is now taken, the change stays listed so you can try again.
 - When you edit a note that Relate has just written to, Relate still mirrors your edit. It tells its own writes apart from yours link by link.
 - Bulk changes appear under **Recent changes** in Relate's settings with an Undo button, and through the **Undo the last change** command.
@@ -97,7 +100,7 @@ Inside your vault, Relate keeps only its settings file in its plugin folder, and
 
 ## Settings
 
-- **Relationships.** Each one is a pair of property names, edited in its own window: nothing changes until you press Save. Use the same name on both sides for a link that reads the same both ways, such as `related`. Mark a side "only one" when a note can have a single value, such as `parent`. Adding a second value then moves the note and tells you.
+- **Relationships.** Each one is a pair of property names, edited in its own window: nothing changes until you press Save. A relationship can also name the notes that need a link, by folder or by tag, such as every note in `Research/Notes` needing a `project`. Check links lists the notes that have none, each with a button to choose one. Use the same name on both sides for a link that reads the same both ways, such as `related`. Mark a side "only one" when a note can have a single value, such as `parent`. Adding a second value then moves the note and tells you.
 - **Update the other note.** On by default. When off, edits you make in the Properties panel stay on one note, while the Connections panel and **Link this note to another note** still update both notes.
 - **Remove from the other note too.** On by default. Each removal shows a notice with Undo.
 - **Dates in search.** Date modified, date created, or a date property of your choice.

@@ -109,3 +109,38 @@ test("the Bases block reads the other side and quotes safely", () => {
 	assert.ok(odd.includes(`'list(note["o''clock"])`));
 	assert.ok(odd.includes(`name: 'it''s'`));
 });
+
+test("without, folder and tag phrases become chips, and dates still win their own words", () => {
+  const folders = (span: string) => (["research/notes", "notes"].includes(span.toLowerCase()) ? "Research/Notes" : null);
+  const labels2 = new Map([...labels, ["project", "project"]]);
+  const q = parseQuery("without project in Research/Notes #draft pricing", labels2, resolve, new Date(2026, 9, 21), folders);
+  assert.deepEqual(
+    q.chips.map((c) => [c.kind, c.kind === "missing" ? c.prop : c.kind === "folder" ? c.path : c.kind === "tag" ? c.tag : ""]),
+    [["missing", "project"], ["folder", "Research/Notes"], ["tag", "draft"]]
+  );
+  assert.equal(q.text, "pricing");
+  assert.equal(chipToText(q.chips[0]), "without project");
+  const d = parseQuery("notes in 2023", labels2, resolve, new Date(2026, 9, 21), () => "2023");
+  assert.equal(d.chips[0].kind, "date", "a year is a date, not a folder named 2023");
+  const none = parseQuery("in nowhere no home", labels2, resolve, new Date(2026, 9, 21), folders);
+  assert.deepEqual(none.chips.map((c) => c.kind), ["missing"]);
+  assert.equal(none.text, "in nowhere");
+});
+
+test("needs-a-link rules cover a folder or a tag, and a link on either note counts", async () => {
+  const { findNeeds, inScope } = await import("../src/health");
+  const note = (path: string, tags: string[] = []) => ({ path, tags });
+  assert.ok(inScope(note("Research/Notes/a.md"), "Research/Notes"));
+  assert.ok(inScope(note("Research/Notes/deep/a.md"), "/Research/Notes/"));
+  assert.ok(!inScope(note("Research/Notebook.md"), "Research/Notes"));
+  assert.ok(inScope(note("x.md", ["paper/draft"]), "#paper"));
+  assert.ok(!inScope(note("x.md", ["papers"]), "#paper"));
+  const rel = { property: "project", inverse: "notes", propertyOne: false, inverseOne: false, chains: false, required: "Research/Notes" };
+  const linked = new Set(["Research/Notes/a.md"]);
+  const needs = findNeeds(
+    [note("Research/Notes/a.md"), note("Research/Notes/b.md"), note("Characters/c.md")],
+    [rel, { ...rel, property: "x", inverse: "y", required: "" }],
+    (path) => linked.has(path)
+  );
+  assert.deepEqual(needs, [{ file: "Research/Notes/b.md", prop: "project", scope: "Research/Notes" }]);
+});

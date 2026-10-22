@@ -39,7 +39,9 @@ export class RelationModal extends Modal {
 		const same = () => r.property !== "" && r.property === r.inverse;
 		let oneFirst: Setting;
 		let oneSecond: Setting;
+		let rule: Setting | undefined;
 		const relabel = () => {
+			rule?.setName(r.property ? `Notes that need a link in ${r.property}` : "Notes that need a link");
 			oneFirst.setName(r.property ? `Only one ${r.property} per note` : "Only one per note");
 			oneSecond.setName(r.inverse ? `Only one ${r.inverse} per note` : "Only one per note");
 			oneSecond.settingEl.toggleClass("relate-hidden", same());
@@ -72,6 +74,9 @@ export class RelationModal extends Modal {
 			})
 		);
 		oneSecond = new Setting(contentEl).addToggle((t) => t.setValue(r.inverseOne).onChange((v) => (r.inverseOne = v)));
+		rule = new Setting(contentEl)
+			.setDesc("Optional. A folder path, or a tag such as “#paper”. Check links lists the notes there that have none.")
+			.addText((t) => t.setValue(r.required ?? "").onChange((v) => (r.required = v.trim())));
 		new Setting(contentEl)
 			.setName("Follow chains in search")
 			.setDesc("A search for “all children of …” then also finds their children, and so on.")

@@ -459,6 +459,31 @@ export default class RelatePlugin extends Plugin {
 		this.refreshViews();
 	}
 
+	/**
+	 * Resolves once Obsidian has re-read every note in `paths`, so the index shows Relate's latest writes, or after
+	 * `limit` milliseconds, whichever comes first.
+	 */
+	afterIndexed(paths: string[], limit = 4000): Promise<void> {
+		const waiting = new Set(paths);
+		if (!waiting.size) return Promise.resolve();
+		return new Promise((resolve) => {
+			let ref: ReturnType<typeof this.app.metadataCache.on> | null = null;
+			const finish = () => {
+				if (ref) this.app.metadataCache.offref(ref);
+				ref = null;
+				window.clearTimeout(timer);
+				resolve();
+			};
+			const timer = window.setTimeout(finish, limit);
+			ref = this.app.metadataCache.on("changed", (file) => {
+				waiting.delete(file.path);
+				// Relate's own listener updates the index first; this runs after it.
+				if (!waiting.size) window.setTimeout(finish, 0);
+			});
+			this.registerEvent(ref);
+		});
+	}
+
 	/** Validated link changes for other plugins and scripts. */
 	private async apiChange(from: string, property: string, to: string, add: boolean): Promise<{ ok: boolean; reason?: string }> {
 		const side = this.sides().get(property);

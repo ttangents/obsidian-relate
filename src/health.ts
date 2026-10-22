@@ -35,10 +35,50 @@ export interface Loop {
 	path: string[];
 }
 
+/** A note that a rule says needs a link in `prop`, and has none. */
+export interface Need {
+	file: string;
+	prop: string;
+	/** The rule's scope, as written: "Research/Notes" or "#paper". */
+	scope: string;
+}
+
 export interface Health {
 	missing: Missing[];
 	conflicts: Conflict[];
 	loops: Loop[];
+	needs: Need[];
+}
+
+/** A note as the rules see it: where it is, and its tags without "#". */
+export interface NoteFacts {
+	path: string;
+	tags: string[];
+}
+
+/** Whether a note falls under a rule's scope: a folder and everything below it, or a tag and its nested tags. */
+export function inScope(note: NoteFacts, scope: string): boolean {
+	const s = scope.trim();
+	if (s.startsWith("#")) {
+		const want = s.slice(1).toLowerCase();
+		return !!want && note.tags.some((t) => t.toLowerCase() === want || t.toLowerCase().startsWith(`${want}/`));
+	}
+	const folder = s.replace(/^\/+|\/+$/g, "");
+	return !!folder && note.path.startsWith(`${folder}/`);
+}
+
+/** Notes that a "needs a link" rule covers and that have no link in that property, recorded on either note. */
+export function findNeeds(notes: Iterable<NoteFacts>, relations: Relation[], hasLink: (path: string, prop: string, inverse: string) => boolean): Need[] {
+	const out: Need[] = [];
+	const rules = relations.filter((r) => r.required?.trim() && r.property.trim() && r.inverse.trim());
+	if (!rules.length) return out;
+	for (const note of notes) {
+		for (const r of rules) {
+			const scope = r.required ?? "";
+			if (inScope(note, scope) && !hasLink(note.path, r.property, r.inverse)) out.push({ file: note.path, prop: r.property, scope });
+		}
+	}
+	return out;
 }
 
 /**
@@ -89,7 +129,7 @@ export function computeHealth(view: EdgeView, sides: Map<string, Side>, only?: S
 			conflicts.push({ file: s.file, prop: s.prop, current, claimants, via: s.via });
 		}
 	}
-	return { missing, conflicts, loops: [] };
+	return { missing, conflicts, loops: [], needs: [] };
 }
 
 /**

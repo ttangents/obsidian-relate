@@ -2,6 +2,7 @@ import { Keymap, Menu, Platform, SuggestModal, TFile, setIcon } from "obsidian";
 import type RelatePlugin from "../main";
 import { chipToText, removeChip, replaceChip, type Chip } from "../search/parser";
 import type { SearchResult } from "../search/service";
+import { LinkResultsModal } from "./linking";
 
 function chipText(chip: Chip): string {
 	if (chip.kind === "relation") return chip.chain.map((c) => `${c.all ? "all " : ""}${c.label} of `).join("") + chip.note.title;
@@ -20,12 +21,31 @@ export class SearchModal extends SuggestModal<SearchResult> {
 		this.setInstructions([
 			{ command: "↵", purpose: "open" },
 			{ command: Platform.isMacOS ? "⌘ ↵" : "Ctrl ↵", purpose: "open in new tab" },
+			{ command: "⇧ ↵", purpose: "link these notes" },
 			{ command: "esc", purpose: "close" },
 		]);
 		this.chipsEl = createDiv({ cls: "relate-chips" });
 		this.inputEl.parentElement?.insertAdjacentElement("afterend", this.chipsEl);
 		this.emptyStateText = "No matching notes.";
 		if (initial) this.inputEl.value = initial;
+		this.scope.register(["Shift"], "Enter", (evt) => {
+			evt.preventDefault();
+			this.linkResults();
+			return false;
+		});
+	}
+
+	private results: SearchResult[] = [];
+
+	/** Links the current results to a note, then searches again so the change shows. */
+	private linkResults(): void {
+		const files = this.results.map((r) => r.file);
+		if (!files.length || !this.plugin.sides().size) return;
+		const query = this.inputEl.value;
+		this.close();
+		new LinkResultsModal(this.plugin, files, (changed) => {
+			void this.plugin.afterIndexed(changed).then(() => new SearchModal(this.plugin, query).open());
+		}).open();
 	}
 
 	onOpen(): void {
@@ -39,7 +59,9 @@ export class SearchModal extends SuggestModal<SearchResult> {
 		const sides = [...this.plugin.sides().keys()];
 		const tips = this.chipsEl.createDiv({ cls: "relate-tips" });
 		tips.appendText(this.plugin.semantic.ready ? "Type words or describe an idea. To narrow it, add " : "Type words to search. To narrow it, add ");
-		const examples = [sides.length ? `${sides[0]} of [note]` : null, "connected to [note]", "last month"].filter((x): x is string => !!x);
+		const examples = [sides.length ? `${sides[0]} of [note]` : null, sides.length ? `without ${sides[0]}` : null, "in [folder]", "last month"].filter(
+			(x): x is string => !!x
+		);
 		examples.forEach((ex, i) => {
 			if (i) tips.appendText(i === examples.length - 1 ? " or " : ", ");
 			tips.createEl("code", { text: ex });
@@ -108,10 +130,15 @@ export class SearchModal extends SuggestModal<SearchResult> {
 		this.lastQuery = query;
 		const parsed = this.plugin.search.parse(query);
 		this.renderChips(parsed.chips, query.trim());
-		if (!query.trim()) return [];
+		if (!query.trim()) {
+			this.results = [];
+			return [];
+		}
 		const results = await this.plugin.search.run(parsed);
 		// Drop stale answers when the user kept typing.
-		return query === this.lastQuery ? results : [];
+		if (query !== this.lastQuery) return [];
+		this.results = results;
+		return results;
 	}
 
 	renderSuggestion(r: SearchResult, el: HTMLElement): void {
