@@ -2,9 +2,9 @@ import { App, FuzzySuggestModal, Modal, Notice, Setting, SuggestModal, TFile } f
 import type RelatePlugin from "../main";
 import type { Side } from "../settings";
 import { availablePresets, type Relation } from "../settings";
-import type { Need } from "../health";
+import { nothingToFix, type Need } from "../health";
 import { previewRelations, scanProperties, type PropertyUse } from "../adopt";
-import type { Conflict, Health, Loop, Missing } from "../sync";
+import type { Conflict, Health, Loop, Missing, Outcome } from "../sync";
 import { noteNamer } from "../links";
 
 function plural(n: number, one: string, many: string): string {
@@ -255,6 +255,9 @@ export class AdoptModal extends Modal {
 
 /** Lists one-way links and competing claims, and fixes them on request. */
 export class HealthModal extends Modal {
+	/** Set once the window closes, so a re-check that finishes later draws nothing. */
+	private closed = false;
+
 	constructor(private plugin: RelatePlugin) {
 		super(plugin.app);
 		this.modalEl.addClass("relate-modal");
@@ -269,7 +272,7 @@ export class HealthModal extends Modal {
 		noteName = noteNamer(this.app.vault.getMarkdownFiles().map((f) => f.path));
 		const { contentEl } = this;
 		contentEl.empty();
-		if (!h.missing.length && !h.conflicts.length && !h.loops.length && !h.needs.length) {
+		if (nothingToFix(h)) {
 			contentEl.createDiv({ cls: "relate-modal-text", text: "Every link is recorded on both notes, and every note has the links its rules ask for. There is nothing to fix." });
 			return;
 		}
@@ -312,7 +315,7 @@ export class HealthModal extends Modal {
 						else if (out.skipped.length)
 							new Notice(`Relate added ${plural(out.applied.length, "link", "links")} and skipped ${out.skipped.length}: ${out.skipped.slice(0, 3).join(" ")}${out.skipped.length > 3 ? " …" : ""}`, 10000);
 						else new Notice(`Relate added ${plural(out.applied.length, "link", "links")}.`);
-						this.refresh();
+						this.refresh(out);
 					})
 			);
 		el.createDiv({
@@ -349,7 +352,7 @@ export class HealthModal extends Modal {
 			const buttons = row.createDiv({ cls: "relate-choices" });
 			buttons.createEl("button", { text: `Choose ${n.prop}…` }).addEventListener("click", () => {
 				new NotePickerModal(this.app, file, `Choose ${file.basename}'s ${n.prop}`, (target) => {
-					void this.plugin.connect(file, side, target).then(() => this.refresh());
+					void this.plugin.connect(file, side, target).then((out) => this.refresh(out));
 				}).open();
 			});
 		}
@@ -387,23 +390,25 @@ export class HealthModal extends Modal {
 					if (out.error && out.applied.length) this.plugin.sync.report(out, "");
 					else if (out.error) new Notice(`Relate did not change anything: ${out.error}`, 10000);
 					else new Notice(`${noteName(c.file)}'s ${c.prop} is now ${noteName(p)}.`);
-					this.refresh();
+					this.refresh(out);
 				})());
 			}
 		}
 	}
 
-	/** Re-checks once Obsidian has re-read the notes Relate just changed. */
-	private refresh(): void {
-		window.setTimeout(() => {
+	/** Re-checks once Obsidian has re-read the notes a fix changed, and closes when nothing is left to fix. */
+	private refresh(out: Outcome): void {
+		const changed = [...new Set(out.applied.map((op) => op.path))];
+		void this.plugin.afterIndexed(changed).then(() => {
+			if (this.closed) return;
 			const h = this.plugin.sync.health();
-			if (!h.missing.length && !h.conflicts.length && !h.loops.length) {
+			if (nothingToFix(h)) {
 				this.close();
-				new Notice("Every link is now recorded on both notes.");
+				new Notice("Every link is now recorded on both notes, and every note has the links its rules ask for.");
 			} else {
 				this.render(h);
 			}
-		}, 800);
+		});
 	}
 
 	private link(parent: HTMLElement, path: string): void {
@@ -416,6 +421,7 @@ export class HealthModal extends Modal {
 	}
 
 	onClose(): void {
+		this.closed = true;
 		this.contentEl.empty();
 	}
 }

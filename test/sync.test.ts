@@ -5,7 +5,7 @@ import { EdgeIndex, traverse } from "../src/graph";
 import { Writer } from "../src/writer";
 import { SyncEngine, TIMING, type SyncHost } from "../src/sync";
 import type { App, TFile as ObsidianFile } from "obsidian";
-import { computeHealth, MapEdges } from "../src/health";
+import { computeHealth, MapEdges, nothingToFix } from "../src/health";
 import { SearchService, type SearchHost } from "../src/search/service";
 import { History } from "../src/history";
 import { DEFAULT_SETTINGS, normalizeSettings, sidesOf, type Relation, type RelateSettings, type Side } from "../src/settings";
@@ -541,7 +541,9 @@ test("a needs-a-link rule lists notes without the link until they get one", asyn
   const { app, plugin } = setup([rule], { "Research/A.md": {}, "Research/B.md": { project: "[[Paper]]" }, "Other.md": {}, "Paper.md": { notes: "[[B]]" } });
   await app.settle();
   assert.deepEqual(plugin.sync.health().needs.map((n) => n.file), ["Research/A.md"]);
+  assert.equal(nothingToFix(plugin.sync.health()), false, "[review 9] a note that needs a link keeps Check links open");
   await plugin.sync.connect(f(app, "Research/A.md"), side(plugin, "project"), f(app, "Paper.md"));
   await app.settle();
   assert.deepEqual(plugin.sync.health().needs, []);
+  assert.equal(nothingToFix(plugin.sync.health()), true);
 });
