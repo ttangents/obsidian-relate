@@ -19,7 +19,7 @@ const meaningKey = (k: string): Meaning | null => {
 };
 
 /** How a relationship reads in the list: "parent ↔ children", or "related (both ways)". */
-export function relationTitle(r: Relation): string {
+function relationTitle(r: Relation): string {
 	return r.property === r.inverse ? `${r.property} (both ways)` : `${r.property} ↔ ${r.inverse}`;
 }
 

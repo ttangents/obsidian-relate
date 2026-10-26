@@ -1,7 +1,7 @@
 import { WordPieceTokenizer } from "./tokenizer";
 
 /** Reads a safetensors file and returns its first 2-D float tensor. */
-export function readSafetensors(buffer: ArrayBuffer): { rows: number; dim: number; data: Float32Array } {
+function readSafetensors(buffer: ArrayBuffer): { rows: number; dim: number; data: Float32Array } {
 	const view = new DataView(buffer);
 	const headerLen = Number(view.getBigUint64(0, true));
 	const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 8, headerLen))) as Record<

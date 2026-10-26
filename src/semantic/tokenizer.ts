@@ -29,7 +29,7 @@ function isAsciiPunct(cp: number): boolean {
 	return (cp >= 33 && cp <= 47) || (cp >= 58 && cp <= 64) || (cp >= 91 && cp <= 96) || (cp >= 123 && cp <= 126);
 }
 
-export function normalize(text: string): string {
+function normalize(text: string): string {
 	let out = "";
 	for (const ch of text) {
 		const cp = ch.codePointAt(0) as number;
@@ -49,7 +49,7 @@ export function normalize(text: string): string {
 	return stripped.toLowerCase();
 }
 
-export function preTokenize(text: string): string[] {
+function preTokenize(text: string): string[] {
 	const words: string[] = [];
 	let cur = "";
 	for (const ch of text) {
