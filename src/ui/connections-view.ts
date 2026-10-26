@@ -147,8 +147,8 @@ export class ConnectionsView extends ItemView {
 			this.navButton(buttons, icons.checkLinks(), "Check links", () => new HealthModal(this.plugin).open());
 		}
 
-		if (this.plugin.releaseNotes.length) {
-			renderUpdateNotice(el, this.plugin.releaseNotes, () => this.plugin.showWhatsNew(), () => this.plugin.dismissReleaseNotes());
+		if (this.plugin.releases.notes.length) {
+			renderUpdateNotice(el, this.plugin.releases.notes, () => this.plugin.showWhatsNew(), () => this.plugin.dismissReleaseNotes());
 		}
 		const body = el.createDiv({ cls: "relate-view-body" });
 		if (!sides.size) {

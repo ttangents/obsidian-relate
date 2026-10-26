@@ -1,5 +1,5 @@
-import { Notice, Platform, TFile, requestUrl } from "obsidian";
-import type RelatePlugin from "../main";
+import { Notice, Platform, TFile, requestUrl, type App } from "obsidian";
+import type { SemanticSettings } from "../settings";
 import { BUILTIN, BuiltinEmbedder, ServerEmbedder, type Embedder } from "./embedders";
 import { StaticModel } from "./static-model";
 import { IdbStore, MemoryStore, type StoredVector, type VectorStore } from "./store";
@@ -27,6 +27,14 @@ async function sha256(buf: ArrayBuffer): Promise<string> {
 	return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** What the meaning index needs from the plugin, and nothing more. */
+export interface SemanticHost {
+	app: App;
+	settings: { semantic: SemanticSettings };
+	/** Records an error and returns a plain message for the user. */
+	reportError(where: string, e: unknown): string;
+}
+
 /** Keeps a vector for every note on this device and answers questions about meaning. */
 export class SemanticIndex {
 	status: SemanticStatus = { state: "off", done: 0, total: 0, message: "" };
@@ -38,7 +46,7 @@ export class SemanticIndex {
 	private listeners = new Set<() => void>();
 	private run = 0;
 
-	constructor(private plugin: RelatePlugin, private consent: Consent) {}
+	constructor(private plugin: SemanticHost, private consent: Consent) {}
 
 	get ready(): boolean {
 		return this.status.state === "ready" || (this.status.state === "indexing" && this.vectors.size > 0);
