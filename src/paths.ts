@@ -7,9 +7,10 @@ export interface Step {
 	to: string;
 }
 
+/** Read access to relationship links, in both directions. */
 export interface PathGraph {
-	targets(path: string, prop: string): Set<string>;
-	incoming(path: string, prop: string): Set<string>;
+	targets(path: string, prop: string): ReadonlySet<string>;
+	incoming(path: string, prop: string): ReadonlySet<string>;
 }
 
 export interface PathOptions {

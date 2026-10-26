@@ -88,12 +88,13 @@ export class EdgeIndex {
 		this.revision++;
 	}
 
-	targets(path: string, prop: string): Set<string> {
+	/** Notes that `path` lists under `prop`. Read-only: the set belongs to the index. */
+	targets(path: string, prop: string): ReadonlySet<string> {
 		return this.out.get(path)?.get(prop) ?? new Set();
 	}
 
-	/** Notes whose `prop` points at `path`. */
-	incoming(path: string, prop: string): Set<string> {
+	/** Notes whose `prop` points at `path`. Read-only: the set belongs to the index. */
+	incoming(path: string, prop: string): ReadonlySet<string> {
 		if (!this.incomingCache) {
 			const cache = new Map<string, Map<string, Set<string>>>();
 			for (const [src, edges] of this.out) {
