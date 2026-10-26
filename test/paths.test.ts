@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { findPaths, type PathGraph } from "../src/paths";
 import { chipToText, parseQuery, replaceChip, type NoteRef } from "../src/search/parser";

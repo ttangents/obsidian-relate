@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { Consent, meaningPlan } from "../src/semantic/consent";
 import { DEFAULT_SEMANTIC, type SemanticSettings } from "../src/settings";

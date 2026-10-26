@@ -1,7 +1,5 @@
 node_modules/
 main.js
-.test/
-.model/
 dist/
 *.log
 .DS_Store

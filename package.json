@@ -10,19 +10,20 @@
     "lint": "eslint .",
     "bundle": "node esbuild.config.mjs production",
     "build": "npm run typecheck && npm run lint && npm run bundle",
-    "test": "tsx --test test/pure.test.ts test/paths.test.ts test/semantic.test.ts test/settings-store.test.ts test/consent.test.ts && esbuild test/sync.test.ts test/semantic-index.test.ts --bundle --platform=node --format=esm --alias:obsidian=./test/fake-obsidian.ts --outdir=.test --log-level=warning && node --test .test/*.js"
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
-    "@eslint/json": "^0.14.0",
-    "@types/node": "^26.6.5",
-    "esbuild": "^0.28.2",
-    "eslint": "^9.39.5",
-    "eslint-plugin-obsidianmd": "^0.4.2",
-    "globals": "^17.13.0",
-    "obsidian": "^1.14.4",
-    "tsx": "^4.23.15",
-    "typescript": "~6.0.0",
-    "typescript-eslint": "^8.72.0"
+    "@eslint/js": "9.39.5",
+    "@eslint/json": "0.14.0",
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "eslint": "9.39.5",
+    "eslint-plugin-obsidianmd": "0.4.2",
+    "globals": "17.13.0",
+    "obsidian": "1.14.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   }
 }

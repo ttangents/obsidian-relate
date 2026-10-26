@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { parseQuery, removeChip, type NoteRef } from "../src/search/parser";
 import { findDate } from "../src/search/dates";

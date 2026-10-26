@@ -11,7 +11,7 @@ const BRANDS = [
 ];
 
 export default defineConfig([
-  globalIgnores(["main.js", "styles.css", "node_modules/", "package-lock.json", "versions.json", ".test/", ".model/", "dist/", "playground/"]),
+  globalIgnores(["main.js", "styles.css", "node_modules/", "package-lock.json", "versions.json", "dist/", "playground/"]),
   {
     languageOptions: {
       globals: { ...globals.browser },

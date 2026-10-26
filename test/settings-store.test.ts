@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { SettingsStore, mergeHistory, type SettingsIo } from "../src/settings-store";
 import type { HistoryBatch } from "../src/settings";
