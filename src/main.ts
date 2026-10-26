@@ -24,6 +24,7 @@ import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
 import { ApiProvider, ChangeSignal, EVENT_CHANGED, createApi, type RelateApi } from "./api";
 
+/** The public API type, for plugins that bundle Relate's types. */
 export type { RelateApi } from "./api";
 
 /**

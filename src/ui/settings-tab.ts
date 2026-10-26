@@ -34,6 +34,7 @@ function relationSummary(r: Relation): string {
 	return text ? text.charAt(0).toUpperCase() + text.slice(1) : "Any number of links on each side";
 }
 
+/** Relate's settings page, built from setting definitions. */
 export class RelateSettingTab extends PluginSettingTab {
 	private restartTimer: number | null = null;
 

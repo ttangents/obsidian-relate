@@ -1,8 +1,10 @@
 import { App, TFile, getLinkpath } from "obsidian";
 import { keyBelongsTo } from "./links";
 
+/** One note's relationship links: property name to the paths of the notes it lists. */
 export type Edges = Map<string, Set<string>>;
 
+/** Which links appeared and which disappeared when a note was re-read, as [property, target path] pairs. */
 export interface Diff {
 	added: [string, string][];
 	removed: [string, string][];

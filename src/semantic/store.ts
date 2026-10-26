@@ -40,6 +40,7 @@ function done(tx: IDBTransaction): Promise<void> {
 	});
 }
 
+/** A vector store in this device's IndexedDB, outside the vault. */
 export class IdbStore implements VectorStore {
 	readonly persistent = true;
 

@@ -2,6 +2,7 @@ const STOP = new Set(
 	"a an and are as at be but by for from has have i in into is it its of on or that the this to was were will with about notes note".split(" ")
 );
 
+/** Splits text into the lowercase words the word index stores. */
 export function tokenize(text: string): string[] {
 	const out: string[] = [];
 	for (const m of text.toLowerCase().matchAll(/[\p{L}\p{N}]+/gu)) {
@@ -16,6 +17,7 @@ interface Doc {
 	tf: Map<string, number>;
 }
 
+/** A note the word search found, with its score and the query words it contains. */
 export interface LexicalHit {
 	path: string;
 	score: number;

@@ -1,6 +1,7 @@
 import { App, TFile, getLinkpath } from "obsidian";
 import { parseWikilink, toArray } from "./links";
 
+/** What adding a link did to a note. */
 export interface AddResult {
 	changed: boolean;
 	/** Path of the note this link replaced, when the property holds only one link. */
@@ -11,6 +12,7 @@ export interface AddResult {
 	blocked: boolean;
 }
 
+/** How to add a link. */
 export interface AddOptions {
 	/** For "only one" properties: allow replacing an existing link. */
 	replace?: boolean;

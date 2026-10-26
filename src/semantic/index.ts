@@ -6,8 +6,10 @@ import { IdbStore, MemoryStore, type StoredVector, type VectorStore } from "./st
 import { fingerprint, rank, readableText, type Hit } from "./core";
 import type { Consent } from "./consent";
 
+/** Where search by meaning stands on this device. */
 export type SemanticState = "off" | "needs-download" | "needs-consent" | "downloading" | "preparing" | "indexing" | "ready" | "error";
 
+/** The state of search by meaning, with a message and indexing progress. */
 export interface SemanticStatus {
 	state: SemanticState;
 	done: number;

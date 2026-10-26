@@ -1,5 +1,6 @@
 import { findDate } from "./dates";
 
+/** A note a query names, as its path and the title the user sees. */
 export interface NoteRef {
 	path: string;
 	title: string;
@@ -8,12 +9,14 @@ export interface NoteRef {
 /** Turns a span of typed text into a note, or null when no note fits. */
 export type Resolver = (span: string) => NoteRef | null;
 
+/** One relationship in a chained phrase such as "residents of all places of Gondor". */
 export interface ChainStep {
 	prop: string;
 	label: string;
 	all: boolean;
 }
 
+/** A phrase that narrows results to notes related to a named note, such as "children of Atlas". */
 export interface RelationChip {
 	kind: "relation";
 	prop: string;
@@ -25,12 +28,14 @@ export interface RelationChip {
 	start: number;
 	end: number;
 }
+/** "connected to X": notes linked to X through any relationship. */
 export interface ConnectedChip {
 	kind: "connected";
 	note: NoteRef;
 	start: number;
 	end: number;
 }
+/** A date phrase such as "last month", as a range of time. */
 export interface DateChip {
 	kind: "date";
 	from: number;
@@ -64,11 +69,13 @@ export interface TagChip {
 	start: number;
 	end: number;
 }
+/** Every kind of phrase search understands, each shown as a chip under the search box. */
 export type Chip = RelationChip | ConnectedChip | DateChip | MissingChip | FolderChip | TagChip;
 
 /** Turns typed text into a folder path, or null when no folder fits. */
 export type FolderResolver = (span: string) => string | null;
 
+/** A query split into the phrases search understood and the words left over. */
 export interface ParsedQuery {
 	chips: Chip[];
 	text: string;

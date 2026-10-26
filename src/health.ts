@@ -6,6 +6,7 @@ export interface EdgeView {
 	targets(path: string, prop: string): ReadonlySet<string>;
 }
 
+/** A link recorded on one note only: `target` lists `file` under `via`, and `file` lacks `prop`. */
 export interface Missing {
 	/** Note that lacks the link. */
 	file: string;
@@ -43,6 +44,7 @@ export interface Need {
 	scope: string;
 }
 
+/** Everything Check links reports about the vault. */
 export interface Health {
 	missing: Missing[];
 	conflicts: Conflict[];

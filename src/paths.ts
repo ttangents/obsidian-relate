@@ -16,6 +16,7 @@ export interface PathGraph {
 /** Notes with more connections than this are hubs, which "skip busy notes" leaves out of a path. */
 export const BUSY_NOTE = 35;
 
+/** Limits on the chains `findPaths` returns. */
 export interface PathOptions {
 	/** Only follow these properties, named from the side of the note being left. All when empty. */
 	props?: Set<string>;

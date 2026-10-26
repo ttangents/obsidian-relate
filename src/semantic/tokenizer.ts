@@ -69,6 +69,7 @@ function preTokenize(text: string): string[] {
 	return words;
 }
 
+/** The WordPiece tokenizer the built-in model was trained with, matching Hugging Face's output exactly. */
 export class WordPieceTokenizer {
 	readonly unkId: number;
 

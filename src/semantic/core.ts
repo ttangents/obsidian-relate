@@ -1,5 +1,6 @@
 import { dot } from "./static-model";
 
+/** A note close in meaning, with its cosine similarity. */
 export interface Hit {
 	path: string;
 	score: number;

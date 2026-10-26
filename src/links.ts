@@ -15,6 +15,7 @@ export function parseWikilink(value: unknown): string | null {
 	return m ? m[1].trim() : null;
 }
 
+/** A property value as a list: empty for nothing, the list itself, or a list of the single value. */
 export function toArray(value: unknown): unknown[] {
 	if (value === null || value === undefined || value === "") return [];
 	return Array.isArray(value) ? value : [value];

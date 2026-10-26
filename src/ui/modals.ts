@@ -55,6 +55,7 @@ export class NotePickerModal extends FuzzySuggestModal<TFile> {
 	}
 }
 
+/** Links `file` to a note the user picks, asking for the relationship first unless `side` is given. */
 export function linkAs(plugin: RelatePlugin, file: TFile, side?: Side): void {
 	const pickNote = (s: Side) =>
 		new NotePickerModal(plugin.app, file, `Choose a note to list under ${s.prop}`, (target) => void plugin.connect(file, s, target)).open();

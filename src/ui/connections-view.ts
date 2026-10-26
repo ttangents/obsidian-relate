@@ -6,6 +6,7 @@ import { AdoptModal, HealthModal, SidePickerModal } from "./modals";
 import { linkMenu } from "./linking";
 import { noteNamer, plural } from "../links";
 
+/** The Connections panel's view type. */
 export const VIEW_TYPE = "relate-connections";
 
 /** Makes a row reachable with Tab and usable with Enter or Space, like a button. */
