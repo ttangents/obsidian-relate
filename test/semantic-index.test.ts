@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { FakeApp, network } from "./fake-obsidian";
 import { SemanticIndex } from "../src/semantic/index";

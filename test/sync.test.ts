@@ -1,4 +1,4 @@
-import { test } from "./harness";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { FakeApp, TFile } from "./fake-obsidian";
 import { EdgeIndex, traverse } from "../src/graph";
