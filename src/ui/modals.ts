@@ -5,13 +5,7 @@ import { availablePresets, type Relation } from "../settings";
 import { nothingToFix, type Need } from "../health";
 import { previewRelations, scanProperties, type PropertyUse } from "../adopt";
 import type { Conflict, Health, Loop, Missing, Outcome } from "../sync";
-import { noteNamer } from "../links";
-
-function plural(n: number, one: string, many: string): string {
-	return `${n} ${n === 1 ? one : many}`;
-}
-
-let noteName = (path: string): string => path.replace(/^.*\//, "").replace(/\.md$/, "");
+import { basename, noteNamer, plural } from "../links";
 
 /** Joins names as "A", "A and B", or "A, B and C". */
 function joinNames(names: string[]): string {
@@ -257,6 +251,8 @@ export class AdoptModal extends Modal {
 export class HealthModal extends Modal {
 	/** Set once the window closes, so a re-check that finishes later draws nothing. */
 	private closed = false;
+	/** Names notes by title, adding the folder where two notes share one. Rebuilt on every draw. */
+	private noteName: (path: string) => string = basename;
 
 	constructor(private plugin: RelatePlugin) {
 		super(plugin.app);
@@ -269,7 +265,7 @@ export class HealthModal extends Modal {
 	}
 
 	private render(h: Health): void {
-		noteName = noteNamer(this.app.vault.getMarkdownFiles().map((f) => f.path));
+		this.noteName = noteNamer(this.app.vault.getMarkdownFiles().map((f) => f.path));
 		const { contentEl } = this;
 		contentEl.empty();
 		if (nothingToFix(h)) {
@@ -327,7 +323,7 @@ export class HealthModal extends Modal {
 			const row = list.createDiv({ cls: "relate-row" });
 			row.appendText("Add ");
 			this.link(row, m.target);
-			row.appendText(` to ${noteName(m.file)}'s `);
+			row.appendText(` to ${this.noteName(m.file)}'s `);
 			row.createEl("code", { text: m.prop });
 		}
 		if (missing.length > 100) list.createDiv({ cls: "relate-row relate-muted", text: `${missing.length - 100} more not shown.` });
@@ -370,8 +366,8 @@ export class HealthModal extends Modal {
 			const row = list.createDiv({ cls: "relate-row relate-conflict" });
 			const line = row.createDiv();
 			this.link(line, c.file);
-			const claimants = joinNames(c.claimants.map(noteName));
-			const current = joinNames(c.current.map(noteName));
+			const claimants = joinNames(c.claimants.map(this.noteName));
+			const current = joinNames(c.current.map(this.noteName));
 			if (c.current.length > 1 && !c.claimants.length) {
 				line.appendText(` lists more than one ${c.prop}: ${current}.`);
 			} else if (c.current.length > 1) {
@@ -383,13 +379,13 @@ export class HealthModal extends Modal {
 			}
 			const buttons = row.createDiv({ cls: "relate-choices" });
 			for (const p of [...c.current, ...c.claimants]) {
-				const b = buttons.createEl("button", { text: `Keep ${noteName(p)}` });
+				const b = buttons.createEl("button", { text: `Keep ${this.noteName(p)}` });
 				b.addEventListener("click", () => void (async () => {
 					buttons.querySelectorAll("button").forEach((x) => (x.disabled = true));
 					const out = await this.plugin.sync.resolve(c, p);
 					if (out.error && out.applied.length) this.plugin.sync.report(out, "");
 					else if (out.error) new Notice(`Relate did not change anything: ${out.error}`, 10000);
-					else new Notice(`${noteName(c.file)}'s ${c.prop} is now ${noteName(p)}.`);
+					else new Notice(`${this.noteName(c.file)}'s ${c.prop} is now ${this.noteName(p)}.`);
 					this.refresh(out);
 				})());
 			}
@@ -412,7 +408,7 @@ export class HealthModal extends Modal {
 	}
 
 	private link(parent: HTMLElement, path: string): void {
-		const a = parent.createEl("a", { text: noteName(path), href: "#", cls: "internal-link" });
+		const a = parent.createEl("a", { text: this.noteName(path), href: "#", cls: "internal-link" });
 		a.addEventListener("click", (e) => {
 			e.preventDefault();
 			void this.app.workspace.openLinkText(path, "", false);

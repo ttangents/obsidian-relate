@@ -4,10 +4,7 @@ import { availablePresets, type Relation, type RelateSettings } from "../setting
 import { AdoptModal, HealthModal } from "./modals";
 import { RelationModal } from "./relation-modal";
 import { BUILTIN } from "../semantic/embedders";
-
-function plural(n: number, one: string, many: string): string {
-	return `${n} ${n === 1 ? one : many}`;
-}
+import { plural } from "../links";
 
 /** Settings that a plain control edits, by key. Nested ones use a dotted key. */
 const SCALARS = ["autoSync", "mirrorRemovals", "dateSource", "dateProperty", "showReleaseNotes"] as const;

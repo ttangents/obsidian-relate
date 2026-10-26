@@ -4,7 +4,7 @@ import { renderUpdateNotice } from "./whats-new";
 import type RelatePlugin from "../main";
 import { AdoptModal, HealthModal, SidePickerModal } from "./modals";
 import { linkMenu } from "./linking";
-import { noteNamer } from "../links";
+import { noteNamer, plural } from "../links";
 
 export const VIEW_TYPE = "relate-connections";
 
@@ -21,10 +21,6 @@ function activatable(el: HTMLElement, label?: string): HTMLElement {
 		}
 	});
 	return el;
-}
-
-function plural(n: number, one: string, many: string): string {
-	return `${n} ${n === 1 ? one : many}`;
 }
 
 /** One-line summary of the vault's link problems, or "" when there are none. */

@@ -2,6 +2,7 @@ import { Keymap, Modal, Setting, TFile } from "obsidian";
 import type RelatePlugin from "../main";
 import { findPaths, type Step } from "../paths";
 import { NotePickerModal } from "./modals";
+import { basename } from "../links";
 
 /** Notes with more connections than this are skipped when "Skip busy notes" is on. */
 export const BUSY_NOTE = 35;
@@ -70,7 +71,7 @@ export class PathsModal extends Modal {
 export function renderPath(el: HTMLElement, plugin: RelatePlugin, path: Step[], after?: () => void): void {
 	el.addClass("relate-path");
 	const note = (p: string) => {
-		const a = el.createEl("a", { cls: "relate-path-note internal-link", text: p.replace(/^.*\//, "").replace(/\.md$/, ""), href: "#" });
+		const a = el.createEl("a", { cls: "relate-path-note internal-link", text: basename(p), href: "#" });
 		a.addEventListener("click", (e) => {
 			e.preventDefault();
 			e.stopPropagation();
