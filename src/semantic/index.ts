@@ -32,6 +32,12 @@ async function sha256(buf: ArrayBuffer): Promise<string> {
 	return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** Opens and deletes a vector store by name. */
+export interface StoreFactory {
+	open(name: string): Promise<VectorStore>;
+	destroy(name: string): Promise<void>;
+}
+
 /** What the meaning index needs from the plugin, and nothing more. */
 export interface SemanticHost {
 	app: App;
@@ -54,13 +60,13 @@ export class SemanticIndex {
 	private run = 0;
 
 	/**
-	 * `open` opens this vault's store on this device; tests pass their own. When it fails, the index falls back to a
-	 * store in memory.
+	 * `stores` opens and deletes this vault's store on this device; tests pass their own. When opening fails, the
+	 * index falls back to a store in memory.
 	 */
 	constructor(
 		private plugin: SemanticHost,
 		private consent: Consent,
-		private open: (name: string) => Promise<VectorStore> = (name) => IdbStore.open(name)
+		private stores: StoreFactory = { open: (name) => IdbStore.open(name), destroy: (name) => IdbStore.destroy(name) }
 	) {}
 
 	/** False when this device's browser storage failed to open, so the model cannot be kept between sessions. */
@@ -100,16 +106,20 @@ export class SemanticIndex {
 		return this.plugin.app;
 	}
 
-	private async openStore(): Promise<VectorStore> {
-		if (this.store) return this.store;
-		// Obsidian's local storage is kept per vault, so a random name stored there keeps vaults apart.
+	/** This vault's store name on this device. Obsidian's local storage is kept per vault, so a random id stored there keeps vaults apart. */
+	private storeName(): string {
 		let id: unknown = this.app.loadLocalStorage(STORE_KEY);
 		if (typeof id !== "string" || !id) {
 			id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 			this.app.saveLocalStorage(STORE_KEY, id);
 		}
+		return `relate-${String(id)}`;
+	}
+
+	private async openStore(): Promise<VectorStore> {
+		if (this.store) return this.store;
 		try {
-			this.store = await this.open(`relate-${String(id)}`);
+			this.store = await this.stores.open(this.storeName());
 		} catch (e) {
 			this.plugin.reportError("Opening the meaning index", e);
 			this.store = new MemoryStore();
@@ -371,7 +381,14 @@ export class SemanticIndex {
 		this.hashes.clear();
 		this.stamps.clear();
 		this.embedder = null;
-		await (await this.openStore()).clear();
+		this.store?.close();
+		this.store = null;
+		// Deleting the database, not only emptying it, leaves nothing of Relate's behind in the browser storage.
+		try {
+			await this.stores.destroy(this.storeName());
+		} catch (e) {
+			this.plugin.reportError("Deleting the meaning index", e);
+		}
 		this.consent.forgetModel();
 		this.set("off");
 		new Notice("Relate removed the model and the meaning index from this device.");

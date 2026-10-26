@@ -45,6 +45,17 @@ export class IdbStore implements VectorStore {
 
 	private constructor(private db: IDBDatabase) {}
 
+	/** Deletes the database called `name`. Close every connection to it first. */
+	static destroy(name: string): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const r = indexedDB.deleteDatabase(name);
+			r.onsuccess = () => resolve();
+			// Another window still holds the database open; it goes once that window closes it.
+			r.onblocked = () => resolve();
+			r.onerror = () => reject(r.error ?? new Error("The browser storage could not delete Relate's index."));
+		});
+	}
+
 	static async open(name: string): Promise<IdbStore> {
 		const r = indexedDB.open(name, 1);
 		r.onupgradeneeded = () => {
