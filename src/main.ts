@@ -11,7 +11,9 @@ import { AdoptModal, HealthModal, SidePickerModal, linkAs } from "./ui/modals";
 import { LinkManyModal, NewLinkedNoteModal, linkSelected } from "./ui/linking";
 import { RelateSettingTab } from "./ui/settings-tab";
 import { SemanticIndex } from "./semantic/index";
-import { ConsentModal } from "./ui/consent-modal";
+import { ConsentModal, ServerConsentModal } from "./ui/consent-modal";
+import { Consent, meaningPlan } from "./semantic/consent";
+import { BUILTIN } from "./semantic/embedders";
 import { BUSY_NOTE, showPaths } from "./ui/paths-modal";
 import { findPaths, stepsFrom } from "./paths";
 import { baseBlock } from "./bases";
@@ -71,6 +73,8 @@ export default class RelatePlugin extends Plugin {
 	sync!: SyncEngine;
 	search!: SearchService;
 	semantic!: SemanticIndex;
+	/** What this device agreed to: the model download, and the server it may send note text to. */
+	consent!: Consent;
 	private statusEl: HTMLElement | null = null;
 	api!: RelateApi;
 	private sidesCache: Map<string, Side> | null = null;
@@ -90,7 +94,8 @@ export default class RelatePlugin extends Plugin {
 		});
 		this.sync = new SyncEngine(this);
 		this.search = new SearchService(this);
-		this.semantic = new SemanticIndex(this);
+		this.consent = new Consent({ load: (key): unknown => this.app.loadLocalStorage(key), save: (key, value) => this.app.saveLocalStorage(key, value) }, BUILTIN.id);
+		this.semantic = new SemanticIndex(this, this.consent);
 		this.api = {
 			version: 1,
 			connections: (path) => stepsFrom(this.index, this.sides(), path).map((s) => ({ prop: s.prop, path: s.to })),
@@ -608,34 +613,44 @@ export default class RelatePlugin extends Plugin {
 		el.toggle(!!text);
 	}
 
-	/** Turns on search by meaning, asking first when this device has no model yet. */
+	/**
+	 * Turns on search by meaning. Asks first when this device has not agreed to download the model, or to send note
+	 * text to the server's exact address. `onCancel` runs when the user says no.
+	 */
 	turnOnMeaning(onCancel?: () => void): void {
-		const begin = async () => {
+		const enable = async () => {
 			this.settings.semantic.enabled = true;
 			await this.saveSettings();
-			await this.semantic.start();
 		};
-		if (this.settings.semantic.source === "server") {
-			// Turning it on here is this device agreeing to use the server.
-			this.semantic.allowServer(this.settings.semantic.serverUrl.trim());
-			void begin();
+		const plan = meaningPlan(this.settings.semantic, this.consent);
+		if (plan.kind === "start" || plan.kind === "needs-address") {
+			// Without an address, starting shows what is missing in the status line and in settings.
+			void enable().then(() => this.semantic.start());
 			return;
 		}
-		if (this.semantic.consented) {
-			void begin();
+		if (plan.kind === "ask-server") {
+			new ServerConsentModal(
+				this,
+				plan.url,
+				async () => {
+					this.consent.allowServer(plan.url);
+					await enable();
+					await this.semantic.start();
+				},
+				onCancel
+			).open();
 			return;
 		}
 		new ConsentModal(
 			this,
 			async () => {
-				this.settings.semantic.enabled = true;
-				await this.saveSettings();
+				await enable();
 				try {
 					await this.semantic.download();
 				} catch (e) {
 					const msg = this.reportError("Downloading the model", e);
 					new Notice(`Relate could not download the model: ${msg}`, 10000);
-					this.semantic.forgetConsent();
+					this.consent.forgetModel();
 				}
 				await this.semantic.start();
 			},

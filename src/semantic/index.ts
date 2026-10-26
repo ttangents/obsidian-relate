@@ -4,6 +4,7 @@ import { BUILTIN, BuiltinEmbedder, ServerEmbedder, type Embedder } from "./embed
 import { StaticModel } from "./static-model";
 import { IdbStore, MemoryStore, type StoredVector, type VectorStore } from "./store";
 import { fingerprint, rank, readableText, type Hit } from "./core";
+import type { Consent } from "./consent";
 
 export type SemanticState = "off" | "needs-download" | "needs-consent" | "downloading" | "preparing" | "indexing" | "ready" | "error";
 
@@ -14,9 +15,6 @@ export interface SemanticStatus {
 	message: string;
 }
 
-const CONSENT_KEY = "relate-model-consent";
-/** The server address this device agreed to send note text to. Kept per device, like the model consent. */
-const SERVER_CONSENT_KEY = "relate-server-consent";
 /** Names this vault's index database on this device. */
 const STORE_KEY = "relate-store-id";
 const BATCH = 24;
@@ -40,7 +38,7 @@ export class SemanticIndex {
 	private listeners = new Set<() => void>();
 	private run = 0;
 
-	constructor(private plugin: RelatePlugin) {}
+	constructor(private plugin: RelatePlugin, private consent: Consent) {}
 
 	get ready(): boolean {
 		return this.status.state === "ready" || (this.status.state === "indexing" && this.vectors.size > 0);
@@ -62,24 +60,6 @@ export class SemanticIndex {
 
 	private get app() {
 		return this.plugin.app;
-	}
-
-	/** This device agreed to download the built-in model. Kept per device, so a synced setting never starts a download. */
-	get consented(): boolean {
-		return this.app.loadLocalStorage(CONSENT_KEY) === BUILTIN.id;
-	}
-
-	forgetConsent(): void {
-		this.app.saveLocalStorage(CONSENT_KEY, null);
-	}
-
-	/** Whether this device agreed to send note text to `url`. A synced setting alone never sends anything. */
-	serverAllowed(url: string): boolean {
-		return !!url && this.app.loadLocalStorage(SERVER_CONSENT_KEY) === url;
-	}
-
-	allowServer(url: string): void {
-		this.app.saveLocalStorage(SERVER_CONSENT_KEY, url || null);
 	}
 
 	private async openStore(): Promise<VectorStore> {
@@ -115,7 +95,7 @@ export class SemanticIndex {
 			if (s.source === "builtin") {
 				const packed = await store.getModel(BUILTIN.id);
 				if (!packed) {
-					if (!this.consented) {
+					if (!this.consent.model) {
 						this.set("needs-download", `Search by meaning needs the ${BUILTIN.name} model on this device (${BUILTIN.sizeLabel}).`);
 						return;
 					}
@@ -123,7 +103,7 @@ export class SemanticIndex {
 						await this.download();
 					} catch (e) {
 						// Ask again rather than download 30 MB on every start after a failure.
-						this.forgetConsent();
+						this.consent.forgetModel();
 						const msg = this.plugin.reportError("Downloading the model", e);
 						if (myRun === this.run) this.set("needs-download", `The model download failed: ${msg}`);
 						return;
@@ -138,7 +118,7 @@ export class SemanticIndex {
 					this.set("error", "Enter the server address and model name in Relate's settings.");
 					return;
 				}
-				if (!this.serverAllowed(s.serverUrl.trim())) {
+				if (!this.consent.server(s.serverUrl)) {
 					this.set("needs-consent", `Search by meaning sends the text of your notes to ${s.serverUrl.trim()}. This device has not agreed to that yet.`);
 					return;
 				}
@@ -164,7 +144,7 @@ export class SemanticIndex {
 
 	/** Downloads the built-in model, checks it, and keeps an 8-bit copy on this device. */
 	async download(): Promise<void> {
-		this.app.saveLocalStorage(CONSENT_KEY, BUILTIN.id);
+		this.consent.allowModel();
 		this.set("downloading", `Downloading the ${BUILTIN.name} model (${BUILTIN.sizeLabel})…`);
 		const files: Record<string, ArrayBuffer> = {};
 		for (const [name, hash] of Object.entries(BUILTIN.files)) {
@@ -311,7 +291,7 @@ export class SemanticIndex {
 		this.hashes.clear();
 		this.embedder = null;
 		await (await this.openStore()).clear();
-		this.app.saveLocalStorage(CONSENT_KEY, null);
+		this.consent.forgetModel();
 		this.set("off");
 		new Notice("Relate removed the model and the meaning index from this device.");
 	}

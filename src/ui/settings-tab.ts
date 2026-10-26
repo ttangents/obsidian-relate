@@ -68,9 +68,9 @@ export class RelateSettingTab extends PluginSettingTab {
 				if (value !== "builtin" && value !== "server") return;
 				s.semantic.source = value;
 			} else {
+				// Typing an address agrees to nothing. Search by meaning stays waiting until this device agrees to
+				// that exact address, in the consent window or with the button beside the status.
 				s.semantic[m] = value.trim();
-				// Typing the address on this device is this device agreeing to send notes there.
-				if (m === "serverUrl") this.plugin.semantic.allowServer(s.semantic.serverUrl);
 			}
 			this.restartMeaning(m === "source" ? 0 : 1000);
 		}
@@ -253,7 +253,7 @@ export class RelateSettingTab extends PluginSettingTab {
 									.setButtonText("Allow on this device")
 									.setCta()
 									.onClick(() => {
-										sem.allowServer(this.plugin.settings.semantic.serverUrl.trim());
+										this.plugin.consent.allowServer(this.plugin.settings.semantic.serverUrl);
 										void sem.start();
 									})
 							);
