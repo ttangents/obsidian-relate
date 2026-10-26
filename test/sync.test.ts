@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { FakeApp, TFile } from "./fake-obsidian";
+import { FakeApp, FakeFiles, TFile } from "./fake-obsidian";
 import { EdgeIndex, traverse } from "../src/graph";
 import { Writer } from "../src/writer";
 import { SyncEngine, TIMING, type SyncHost } from "../src/sync";
@@ -17,15 +17,16 @@ function setup(relations: Relation[], notes: Record<string, Record<string, unkno
 	for (const [p, fm] of Object.entries(notes)) app.add(p, fm);
 	// The fake stands in for the slice of Obsidian's App that Relate uses.
 	const obsidian = app as unknown as App;
-	const settings: RelateSettings = { ...DEFAULT_SETTINGS, relations, history: [] };
+	const settings: RelateSettings = { ...DEFAULT_SETTINGS, relations };
 	const errors: string[] = [];
 	const sides = () => sidesOf(settings.relations);
 	const notices: string[] = [];
 	const history = new History({
-		batches: () => settings.history,
-		save: () => {},
+		files: new FakeFiles(),
+		path: "history.json",
 		reverse: (label, ops) => plugin.sync.undo(label, ops),
 		notify: (message) => notices.push(message),
+		reportError: (where, e) => errors.push(`${where}: ${String(e)}`),
 	});
 	const host: SyncHost = {
 		app: obsidian,
@@ -45,7 +46,8 @@ function setup(relations: Relation[], notes: Record<string, Record<string, unkno
 	const plugin = { ...host, sync: new SyncEngine(host) };
 	if (opts.start !== false) plugin.sync.start();
 	app.onChanged((file: TFile) => plugin.sync.onChanged(real(file)));
-	return { app, plugin, settings, errors, history, notices };
+	const batches = () => history.list();
+	return { app, plugin, settings, errors, history, notices, batches };
 }
 
 const family: Relation = { property: "parent", inverse: "children", propertyOne: true, inverseOne: false, chains: true };
@@ -172,16 +174,16 @@ test("[review 3] undo right after a large batch removes every link, even while t
 	const names = Array.from({ length: 40 }, (_, i) => `N${i}.md`);
 	const notesFm: Record<string, Record<string, unknown>> = { "Paper.md": {} };
 	for (const n of names) notesFm[n] = {};
-	const { app, plugin, settings, history } = setup([project], notesFm);
+	const { app, plugin, batches, history } = setup([project], notesFm);
 	app.cacheLag = 200;
 	const notes = side(plugin, "notes");
 	await plugin.sync.connectMany(names.map((n) => ({ file: f(app, "Paper.md"), side: notes, target: f(app, n) })), "Linked 40 notes to Paper");
 	// Undo at once, before Obsidian has re-read the notes Relate just wrote.
-	await history.undo(settings.history.at(-1)!.id);
+	await history.undo(batches().at(-1)!.id);
 	await app.settle();
 	assert.equal(app.fm.get("Paper.md")!.notes, undefined);
 	for (const n of names) assert.equal(app.fm.get(n)!.project, undefined, n);
-	assert.equal(settings.history.at(-2)!.undoable, false);
+	assert.equal(batches().at(-2)!.undoable, false);
 });
 
 test("[review 3] a link removed and quickly added again is mirrored again, even while the cache lags", async () => {
@@ -208,12 +210,12 @@ test("[review 14] a back-link that is already in the file is never written twice
 });
 
 test("[review 2] a mirrored move can be undone, and undo puts all three notes back", async () => {
-	const { app, settings, history, notices } = setup([family], { "A.md": { children: ["[[B]]"] }, "B.md": { parent: "[[A]]" }, "C.md": {} });
+	const { app, batches, history, notices } = setup([family], { "A.md": { children: ["[[B]]"] }, "B.md": { parent: "[[A]]" }, "C.md": {} });
 	await app.edit("C.md", (fm) => (fm.children = ["[[B]]"]));
 	await app.settle();
 	assert.equal(app.fm.get("B.md")!.parent, "[[C]]");
 	assert.equal(app.fm.get("A.md")!.children, undefined);
-	const batch = settings.history.at(-1)!;
+	const batch = batches().at(-1)!;
 	assert.equal(batch.undoable, true, "a mirrored change is undoable");
 	assert.deepEqual(batch.ops[0], { path: "C.md", prop: "children", target: "B.md", action: "add" }, "the user's own edit leads the batch");
 	await history.undo(batch.id);
@@ -226,12 +228,12 @@ test("[review 2] a mirrored move can be undone, and undo puts all three notes ba
 });
 
 test("[review 2] undoing part of a mirrored batch leaves the rest undoable", async () => {
-	const { app, settings, history } = setup([related], { "A.md": { related: ["[[B]]", "[[C]]"] }, "B.md": { related: ["[[A]]"] }, "C.md": { related: ["[[A]]"] } });
+	const { app, batches, history } = setup([related], { "A.md": { related: ["[[B]]", "[[C]]"] }, "B.md": { related: ["[[A]]"] }, "C.md": { related: ["[[A]]"] } });
 	await app.edit("A.md", (fm) => (fm.related = []));
 	await app.settle();
 	assert.equal(app.fm.get("B.md")!.related, undefined);
 	assert.equal(app.fm.get("C.md")!.related, undefined);
-	const batch = settings.history.at(-1)!;
+	const batch = batches().at(-1)!;
 	const forB = batch.ops.filter((op) => op.path === "B.md" || op.target === "B.md");
 	await history.undo(batch.id, forB);
 	await app.settle();
@@ -261,7 +263,7 @@ test("[1] a user edit to a note Relate just wrote is still mirrored", async () =
 });
 
 test("[2] a batch that fails partway records what it changed and says it stopped", async () => {
-	const { app, plugin, settings } = setup([family], { "A.md": { children: ["[[B]]", "[[C]]"] }, "B.md": {}, "C.md": {} });
+	const { app, plugin, batches } = setup([family], { "A.md": { children: ["[[B]]", "[[C]]"] }, "B.md": {}, "C.md": {} });
 	const h = plugin.sync.health();
 	assert.equal(h.missing.length, 2);
 	app.failWrites.add("C.md");
@@ -270,7 +272,7 @@ test("[2] a batch that fails partway records what it changed and says it stopped
 	assert.equal(app.fm.get("B.md")!.parent, "[[A]]");
 	assert.equal(out.applied.length, 1);
 	assert.ok(out.error?.includes("could not save C.md"));
-	const batch = settings.history.at(-1)!;
+	const batch = batches().at(-1)!;
 	assert.ok(batch.label.includes("stopped partway"));
 	assert.equal(batch.undoable, true);
 	assert.equal(batch.ops.length, 1);
@@ -459,7 +461,6 @@ test("[settings] a damaged settings file falls back to safe values and says what
 	const { settings, problems } = normalizeSettings({ relations: [{ property: "parent", inverse: "children" }, { property: 3 }], autoSync: "yes", history: "x" });
 	assert.equal(settings.relations.length, 1);
 	assert.equal(settings.autoSync, true);
-	assert.equal(settings.history.length, 0);
 	assert.equal(problems.length, 2);
 	assert.equal(normalizeSettings(undefined).problems.length, 0);
 });
@@ -505,7 +506,7 @@ test("linking refuses to close a loop and explains the chain", async () => {
 });
 
 test("linking several notes is one undoable batch, and skips only the pairs that cannot be linked", async () => {
-	const { app, plugin, settings } = setup([{ property: "project", inverse: "notes", propertyOne: false, inverseOne: false, chains: false }], {
+	const { app, plugin, batches } = setup([{ property: "project", inverse: "notes", propertyOne: false, inverseOne: false, chains: false }], {
 		"Paper.md": {},
 		"A.md": {},
 		"B.md": {},
@@ -519,7 +520,7 @@ test("linking several notes is one undoable batch, and skips only the pairs that
 	await app.settle();
 	assert.deepEqual(app.fm.get("Paper.md")!.notes, ["[[A]]", "[[B]]", "[[C]]"]);
 	for (const p of ["A.md", "B.md", "C.md"]) assert.deepEqual(app.fm.get(p)!.project, ["[[Paper]]"]);
-	assert.equal(settings.history.filter((h) => h.undoable).length, 1);
+	assert.equal(batches().filter((h) => h.undoable).length, 1);
 	const undo = await plugin.sync.undo("Linked 3 notes to Paper", out.applied);
 	await app.settle();
 	assert.equal(undo.unresolved.length, 0);

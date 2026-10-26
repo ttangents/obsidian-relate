@@ -189,3 +189,22 @@ export class FakeApp {
 		},
 	};
 }
+
+/** Files in a plugin folder, kept in memory. */
+export class FakeFiles {
+	data = new Map<string, string>();
+	writes = 0;
+	/** Paths whose next write throws. */
+	failWrites = new Set<string>();
+	exists = async (path: string): Promise<boolean> => this.data.has(path);
+	read = async (path: string): Promise<string> => {
+		const text = this.data.get(path);
+		if (text === undefined) throw new Error(`no file at ${path}`);
+		return text;
+	};
+	write = async (path: string, text: string): Promise<void> => {
+		if (this.failWrites.delete(path)) throw new Error(`could not write ${path}`);
+		this.writes++;
+		this.data.set(path, text);
+	};
+}

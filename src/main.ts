@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, type Events } from "obsidian";
+import { Notice, Plugin, TFile, normalizePath, type Events } from "obsidian";
 import { sidesOf, validateRelations, type Relation, type RelateSettings, type Side } from "./settings";
 import { EdgeIndex } from "./graph";
 import { Writer } from "./writer";
@@ -18,7 +18,7 @@ import { recentNotes } from "./release-notes";
 import { ReleaseState } from "./release-state";
 import { WelcomeModal, WhatsNewModal } from "./ui/whats-new";
 import { SettingsStore } from "./settings-store";
-import { History } from "./history";
+import { History, type PluginFiles } from "./history";
 import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
 import { EVENT_CHANGED, EVENT_READY, EVENT_REQUEST, EVENT_UNLOAD, createApi, type RelateApi } from "./api";
@@ -60,11 +60,13 @@ export default class RelatePlugin extends Plugin {
 		this.queries = new RelationQueries(this.index, () => this.sides());
 		this.writer = new Writer(this.app);
 		this.history = new History({
-			batches: () => this.settings.history,
-			save: () => void this.saveSettings(),
+			files: this.files(),
+			path: this.pluginPath("history.json"),
 			reverse: (label, ops) => this.sync.undo(label, ops),
 			notify: (message, ms) => new Notice(message, ms),
+			reportError: (where, e) => void this.reportError(where, e),
 		});
+		await this.moveLegacyHistory();
 		this.sync = new SyncEngine(this);
 		this.search = new SearchService(this);
 		this.consent = new Consent(storage, BUILTIN.id);
@@ -181,8 +183,32 @@ export default class RelatePlugin extends Plugin {
 		this.sync?.stop();
 		this.semantic?.stop();
 		this.search?.stop();
+		void this.history?.flush();
 		if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
 		this.refreshTimer = null;
+	}
+
+	/** The plugin's own folder, through Obsidian's vault adapter. */
+	private files(): PluginFiles {
+		const adapter = this.app.vault.adapter;
+		return { exists: (p) => adapter.exists(p), read: (p) => adapter.read(p), write: (p, d) => adapter.write(p, d) };
+	}
+
+	/** A normalized path to `name` in the plugin's own folder. */
+	private pluginPath(name: string): string {
+		return normalizePath(`${this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`}/${name}`);
+	}
+
+	/**
+	 * Reads the history file, and moves any history an earlier version kept in the settings file into it. The
+	 * settings file keeps that history until the history file has it.
+	 */
+	private async moveLegacyHistory(): Promise<void> {
+		const legacy = this.store.legacyHistory;
+		if ((await this.history.load(legacy)) && legacy.length) {
+			this.store.legacyHistory = [];
+			await this.saveSettings();
+		}
 	}
 
 	async loadSettings(): Promise<void> {
@@ -202,7 +228,7 @@ export default class RelatePlugin extends Plugin {
 
 	/**
 	 * Obsidian calls this when the settings file changes on disk, usually because sync brought a copy from another
-	 * device. Relate takes that copy, keeps history from both, and re-reads whatever the change affects, so its next
+	 * device. Relate takes that copy, re-reads the history file, and re-reads whatever the change affects, so its next
 	 * save never overwrites what the other device wrote.
 	 */
 	async onExternalSettingsChange(): Promise<void> {
@@ -213,6 +239,8 @@ export default class RelatePlugin extends Plugin {
 			return;
 		}
 		this.sidesCache = null;
+		await this.history.reload();
+		if (this.store.legacyHistory.length) await this.moveLegacyHistory();
 		if (change.relations) this.relationsChanged();
 		if (change.meaning) void this.semantic.start();
 		this.settingTab?.update();

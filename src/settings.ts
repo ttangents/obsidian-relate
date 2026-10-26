@@ -25,12 +25,15 @@ export interface HistoryOp {
 	text?: string;
 }
 
+/** One change Relate made to notes, as Recent changes lists it. */
 export interface HistoryBatch {
 	id: string;
 	time: number;
 	label: string;
 	ops: HistoryOp[];
 	undoable: boolean;
+	/** How many notes changed, when the batch was too large to keep its changes for undo. */
+	count?: number;
 }
 
 export type DateSource = "modified" | "created" | "property";
@@ -59,7 +62,6 @@ export interface RelateSettings {
 	mirrorRemovals: boolean;
 	dateSource: DateSource;
 	dateProperty: string;
-	history: HistoryBatch[];
 	welcomed: boolean;
 	/** The user closed the Connections panel themselves, so Relate leaves it closed. */
 	panelClosed: boolean;
@@ -78,7 +80,6 @@ export const DEFAULT_SETTINGS: RelateSettings = {
 	mirrorRemovals: true,
 	dateSource: "modified",
 	dateProperty: "",
-	history: [],
 	welcomed: false,
 	panelClosed: false,
 	errors: [],
@@ -185,11 +186,32 @@ function isObj(v: unknown): v is Record<string, unknown> {
 	return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+/** Turns stored undo history into valid batches, leaving out any that are malformed. */
+export function normalizeHistory(raw: unknown): HistoryBatch[] {
+	const history: HistoryBatch[] = [];
+	for (const b of Array.isArray(raw) ? (raw as unknown[]) : []) {
+		if (!isObj(b) || !Array.isArray(b.ops) || typeof b.id !== "string") continue;
+		const ops = (b.ops as unknown[]).filter(
+			(o): o is HistoryOp => isObj(o) && typeof o.path === "string" && typeof o.prop === "string" && typeof o.target === "string" && (o.action === "add" || o.action === "remove")
+		);
+		history.push({
+			id: b.id,
+			time: typeof b.time === "number" ? b.time : 0,
+			label: typeof b.label === "string" ? b.label : "Change",
+			ops,
+			undoable: b.undoable === true,
+			...(typeof b.count === "number" ? { count: b.count } : {}),
+		});
+	}
+	return history;
+}
+
 /**
  * Turns whatever is in the settings file into valid settings. Anything malformed falls back to its default,
  * and each fallback is described in plain language, so a damaged or half-synced file never stops Relate loading.
+ * `history` is undo history that versions up to 1.0.1 kept in the settings file; it now lives in its own file.
  */
-export function normalizeSettings(raw: unknown): { settings: RelateSettings; problems: string[] } {
+export function normalizeSettings(raw: unknown): { settings: RelateSettings; problems: string[]; history: HistoryBatch[] } {
 	const problems: string[] = [];
 	const d = isObj(raw) ? raw : {};
 	if (raw !== undefined && raw !== null && !isObj(raw)) problems.push("The settings file was not readable.");
@@ -219,15 +241,6 @@ export function normalizeSettings(raw: unknown): { settings: RelateSettings; pro
 		});
 	}
 
-	const history: HistoryBatch[] = [];
-	for (const b of Array.isArray(d.history) ? d.history : []) {
-		if (!isObj(b) || !Array.isArray(b.ops) || typeof b.id !== "string") continue;
-		const ops = (b.ops as unknown[]).filter(
-			(o): o is HistoryOp => isObj(o) && typeof o.path === "string" && typeof o.prop === "string" && typeof o.target === "string" && (o.action === "add" || o.action === "remove")
-		);
-		history.push({ id: b.id, time: typeof b.time === "number" ? b.time : 0, label: str(b.label, "Change"), ops, undoable: b.undoable === true });
-	}
-
 	const sem = isObj(d.semantic) ? d.semantic : {};
 	const source = sem.source === "server" ? "server" : "builtin";
 	const dateSource = d.dateSource === "created" || d.dateSource === "property" ? d.dateSource : "modified";
@@ -237,13 +250,13 @@ export function normalizeSettings(raw: unknown): { settings: RelateSettings; pro
 
 	return {
 		problems,
+		history: normalizeHistory(d.history),
 		settings: {
 			relations,
 			autoSync: bool("autoSync", DEFAULT_SETTINGS.autoSync),
 			mirrorRemovals: bool("mirrorRemovals", DEFAULT_SETTINGS.mirrorRemovals),
 			dateSource,
 			dateProperty: str(d.dateProperty, ""),
-			history,
 			welcomed: d.welcomed === true,
 			panelClosed: d.panelClosed === true,
 			errors,
