@@ -52,11 +52,11 @@ Search by meaning is off until you turn it on in Relate's settings or with **Tur
 
 It uses [potion-base-8M](https://huggingface.co/minishlab/potion-base-8M), a small static embedding model (30 MB, MIT license). Relate runs it in plain JavaScript, with no WebAssembly and no code downloaded at runtime, so it works on phones and tablets too.
 - Relate asks before it downloads the model, on each device. A setting synced from another device never starts a download.
-- Relate checks the download against the published file's SHA-256 fingerprint and keeps an 8-bit copy (about 8 MB) in this device's browser storage, outside the vault, along with the index. Sync never copies either.
+- Relate checks the download against the published file's SHA-256 fingerprint and keeps an 8-bit copy (about 8 MB) in this device's browser storage, outside the vault, along with the index. Sync never copies either. If this device's browser storage is not available, Relate cannot keep the model, so it asks before each download, which then lasts until Obsidian closes.
 - Indexing happens on the device, and Relate re-indexes a note a moment after you change it. Your notes are not sent anywhere.
-- **Remove from this device** in settings deletes the model and the index.
+- **Remove from this device** in settings deletes the model, the index and their database.
 
-A static model is fast and small, and it understands topics well, but it reads a note as a bag of words rather than as sentences. For a larger model, choose **My own server** and point Relate at any server with an OpenAI-compatible embeddings endpoint, such as Ollama (`http://localhost:11434`, model `nomic-embed-text`) or LM Studio. In that case Relate sends the text of your notes to that server. If the server needs a key, pick it from Obsidian's keychain in Relate's settings; Relate stores only the key's name. Each device asks before it sends notes to a server, so a setting that arrives by sync never sends anything on its own.
+A static model is fast and small, and it understands topics well, but it reads a note as a bag of words rather than as sentences. For a larger model, choose **My own server** and point Relate at any server with an OpenAI-compatible embeddings endpoint, such as Ollama (`http://localhost:11434`, model `nomic-embed-text`) or LM Studio. In that case Relate sends the text of your notes to that server. If the server needs a key, pick it from Obsidian's keychain in Relate's settings; Relate stores only the key's name. Each device asks before it sends notes to a server, naming the exact address, so a setting that arrives by sync never sends anything on its own, and changing the address asks again. If the address uses plain `http` on another machine, Relate warns that your notes and any key travel unencrypted.
 
 ## Works with Home Cards
 
@@ -78,9 +78,10 @@ After an update, a line at the top of the Connections panel opens the release no
 - **Check links** finds links recorded on one note only, any "only one" property that lists, or is claimed by, more than one note, and notes that a relationship says need a link but have none. It adds missing links but never removes one unless you choose between competing notes, and that choice can be undone. Before applying anything, it rechecks the notes and skips proposals that no longer apply.
 - Relate makes its changes one at a time and records each one as it happens. If a batch stops partway, the changes it did make are listed under **Recent changes** and can be undone. If undo cannot reverse a change, because a note is gone or a property is now taken, the change stays listed so you can try again.
 - When you edit a note that Relate has just written to, Relate still mirrors your edit. It tells its own writes apart from yours link by link.
-- Bulk changes appear under **Recent changes** in Relate's settings with an Undo button, and through the **Undo the last change** command.
-- When a removal on one note removes the matching link on another, Relate shows a notice with Undo, which restores the link on both notes.
-- Search indexes live in memory. Relate stores nothing in your vault apart from its settings file in the plugin folder.
+- Every change Relate makes appears under **Recent changes** in Relate's settings with an Undo button, and the **Undo the last change** command undoes the newest. That includes the links Relate adds back or removes after you edit a property; undoing one puts every note back as it was before your edit. A batch too large to keep for undo, roughly 8,000 changed links, is listed without Undo, and Relate says so when it happens.
+- When your edit removes a link from another note, or moves a note from one "only one" property to another, Relate shows a notice with Undo, which puts the notes back as they were.
+- Search indexes live in memory. In your vault, Relate stores only files in its plugin folder: its settings, its undo history, and, if the settings file was ever damaged, a copy of the damaged file.
+- If the settings file is damaged, Relate uses safe values, says what was wrong, and copies the original to `data.backup.json` in its plugin folder before it saves anything.
 
 ## Privacy and access
 
@@ -89,14 +90,14 @@ Relate shows no ads, collects no telemetry and needs no account. It reads your n
 Relate connects to the internet only in two cases, and only after you turn on search by meaning:
 
 - **The built-in model, from Hugging Face.** Search by meaning needs a small language model to turn notes into numbers it can compare. Relate asks on each device before it downloads the model, about 30 MB, from [Hugging Face](https://huggingface.co/minishlab/potion-base-8M) at a fixed version. It checks each file against its published SHA-256 fingerprint and saves nothing that does not match. The model is data: Relate downloads no code.
-- **Your own server, if you choose one.** Some readers prefer a larger model than the built-in one. If you choose **My own server**, Relate sends the text of your notes and searches to the address you enter, and to no other, so that server can index them. Each device asks before it starts.
+- **Your own server, if you choose one.** Some readers prefer a larger model than the built-in one. If you choose **My own server**, Relate sends the text of your notes and searches to the address you enter, and to no other, so that server can index them. Each device asks before it starts, naming the address, and asks again if the address changes.
 
 Outside your vault, Relate keeps on each device:
 
 - the model and the index for search by meaning, in Obsidian's browser storage;
 - in Obsidian's local storage: whether this device agreed to the download or the server, the name of its storage, and the newest release whose notes you have seen.
 
-Inside your vault, Relate keeps only its settings file in its plugin folder, and changes notes only as this page describes.
+Inside your vault, Relate keeps only files in its plugin folder: its settings (`data.json`), its undo history (`history.json`), and a copy of a damaged settings file (`data.backup.json`) if there ever was one. It changes notes only as this page describes.
 
 Relate lists every note in the vault to keep its index of links, and reads notes' text for search. It writes to the clipboard only when you run **Copy a table of notes linked to this note**, and it never reads the clipboard.
 
@@ -141,10 +142,12 @@ The API object is frozen. When Relate unloads, it sends `relate:unload` first, a
 ## Development
 
 ```sh
-npm install
+npm ci
 npm run build   # type check, Obsidian's lint rules, main.js
-npm test        # runs the tests
+npm test        # runs the tests with Vitest
 ```
+
+Two tests check the built-in model against reference embeddings. They run only when `RELATE_MODEL` names a folder that holds potion-base-8M's `tokenizer.json` and `model.safetensors`, and report themselves as skipped otherwise.
 
 `npm run lint` applies [Obsidian's review rules](https://github.com/obsidianmd/eslint-plugin), the checks the community directory runs on each release, to every file in the repository.
 
