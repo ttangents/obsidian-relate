@@ -3,7 +3,7 @@ import type { Relation, Side } from "./settings";
 /** Read access to relationship links: what each note lists under each property. */
 export interface EdgeView {
 	entries(): Iterable<[string, string, string]>;
-	targets(path: string, prop: string): Set<string>;
+	targets(path: string, prop: string): ReadonlySet<string>;
 }
 
 export interface Missing {
@@ -141,7 +141,7 @@ export function computeHealth(view: EdgeView, sides: Map<string, Side>, only?: S
  * For a chain-following relationship, the notes one step "up" from `path`: what it lists under the property,
  * plus notes that list it under the other side. For parent and children, that is the note's parents.
  */
-export function upStep(view: EdgeView, incoming: (path: string, prop: string) => Set<string>, r: Relation, path: string): Set<string> {
+export function upStep(view: EdgeView, incoming: (path: string, prop: string) => ReadonlySet<string>, r: Relation, path: string): Set<string> {
 	const out = new Set(view.targets(path, r.property));
 	for (const p of incoming(path, r.inverse)) out.add(p);
 	out.delete(path);
@@ -149,7 +149,7 @@ export function upStep(view: EdgeView, incoming: (path: string, prop: string) =>
 }
 
 /** The chain from `from` up to `to`, if `to` is above `from`. Used to refuse a link that would close a loop. */
-export function pathUp(step: (p: string) => Set<string>, from: string, to: string, maxDepth = 64): string[] | null {
+export function pathUp(step: (p: string) => ReadonlySet<string>, from: string, to: string, maxDepth = 64): string[] | null {
 	const prev = new Map<string, string>([[from, ""]]);
 	let frontier = [from];
 	for (let d = 0; d < maxDepth && frontier.length; d++) {
@@ -176,7 +176,7 @@ export function pathUp(step: (p: string) => Set<string>, from: string, to: strin
 }
 
 /** Finds chains that lead back to themselves, once each, for relationships that follow chains. */
-export function findLoops(view: EdgeView, incoming: (path: string, prop: string) => Set<string>, relations: Relation[]): Loop[] {
+export function findLoops(view: EdgeView, incoming: (path: string, prop: string) => ReadonlySet<string>, relations: Relation[]): Loop[] {
 	const loops: Loop[] = [];
 	for (const r of relations) {
 		if (!r.chains || r.property === r.inverse) continue;
@@ -218,7 +218,7 @@ export class MapEdges implements EdgeView {
 	*entries(): IterableIterator<[string, string, string]> {
 		for (const [src, byProp] of this.edges) for (const [prop, ts] of byProp) for (const t of ts) yield [src, prop, t];
 	}
-	targets(path: string, prop: string): Set<string> {
+	targets(path: string, prop: string): ReadonlySet<string> {
 		return this.edges.get(path)?.get(prop) ?? new Set();
 	}
 }
