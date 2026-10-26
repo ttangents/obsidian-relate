@@ -21,8 +21,18 @@ export interface ReleaseNote {
 	new?: readonly string[];
 	improved?: readonly string[];
 	fixed?: readonly string[];
-	/** What the release adds for readers who also use Home Cards. The window introduces it, so it never assumes it. */
-	withCompanion?: readonly string[];
+	/**
+	 * What a release adds for readers who also use another of the author's plugins. The window introduces that
+	 * plugin and links to its page, so the notes never assume the reader has it.
+	 */
+	worksWith?: {
+		plugin: string;
+		/** The plugin's page in Obsidian's community directory. */
+		url: string;
+		/** What the plugin does, after its name: "which turns your notes into a start page of cards". */
+		about: string;
+		items: readonly string[];
+	};
 }
 
 export const RELEASE_GROUPS = [
@@ -30,13 +40,6 @@ export const RELEASE_GROUPS = [
 	{ key: "improved", label: "Improved" },
 	{ key: "fixed", label: "Fixed" },
 ] as const satisfies readonly { key: keyof ReleaseNote; label: string }[];
-
-/** The author's other plugin, introduced in the welcome window and the release notes. */
-export const COMPANION = {
-	name: "Home Cards",
-	url: "https://community.obsidian.md/plugins/home-cards",
-	about: "which turns your notes into a start page of cards",
-} as const;
 
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
 	{
@@ -62,10 +65,15 @@ export const RELEASE_NOTES: readonly ReleaseNote[] = [
 			"Check links finds links recorded on one note only and fixes them. A relationship can also say which notes need a link, such as every note in a folder, and Check links lists the ones that have none.",
 			"Search by meaning, which is off until you turn it on, finds notes about an idea even when they use different words. It runs on your device.",
 		],
-		withCompanion: [
-			"A Home Cards section can list the results of a Relate search, and each card says why it is there.",
-			"A note's page in Home Cards gives each of the note's relationships a section of its own.",
-		],
+		worksWith: {
+			plugin: "Home Cards",
+			url: "https://community.obsidian.md/plugins/home-cards",
+			about: "which turns your notes into a start page of cards",
+			items: [
+				"A Home Cards section can list the results of a Relate search, and each card says why it is there.",
+				"A note's page in Home Cards gives each of the note's relationships a section of its own.",
+			],
+		},
 	},
 ];
 
