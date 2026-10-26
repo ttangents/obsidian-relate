@@ -7,7 +7,8 @@ import { SyncEngine, TIMING, type SyncHost } from "../src/sync";
 import type { App, TFile as ObsidianFile } from "obsidian";
 import { computeHealth, MapEdges } from "../src/health";
 import { SearchService, type SearchHost } from "../src/search/service";
-import { DEFAULT_SETTINGS, normalizeSettings, sidesOf, type HistoryOp, type Relation, type RelateSettings, type Side } from "../src/settings";
+import { History } from "../src/history";
+import { DEFAULT_SETTINGS, normalizeSettings, sidesOf, type Relation, type RelateSettings, type Side } from "../src/settings";
 TIMING.settle = 5;
 TIMING.retries = [20, 20, 20];
 
@@ -19,15 +20,20 @@ function setup(relations: Relation[], notes: Record<string, Record<string, unkno
 	const settings: RelateSettings = { ...DEFAULT_SETTINGS, relations, history: [] };
 	const errors: string[] = [];
 	const sides = () => sidesOf(settings.relations);
+	const notices: string[] = [];
+	const history = new History({
+		batches: () => settings.history,
+		save: () => {},
+		reverse: (label, ops) => plugin.sync.undo(label, ops),
+		notify: (message) => notices.push(message),
+	});
 	const host: SyncHost = {
 		app: obsidian,
 		settings,
 		sides,
 		index: new EdgeIndex(obsidian, () => new Set(sides().keys())),
 		writer: new Writer(obsidian),
-		record: (label: string, ops: HistoryOp[], undoable: boolean) => {
-			settings.history.push({ id: String(settings.history.length), time: 0, label, ops: [...ops], undoable });
-		},
+		history,
 		refreshViews: () => {},
 		relationsValid: () => true,
 		registerEvent: () => {},
@@ -39,7 +45,7 @@ function setup(relations: Relation[], notes: Record<string, Record<string, unkno
 	const plugin = { ...host, sync: new SyncEngine(host) };
 	if (opts.start !== false) plugin.sync.start();
 	app.onChanged((file: TFile) => plugin.sync.onChanged(real(file)));
-	return { app, plugin, settings, errors };
+	return { app, plugin, settings, errors, history, notices };
 }
 
 const family: Relation = { property: "parent", inverse: "children", propertyOne: true, inverseOne: false, chains: true };
@@ -160,6 +166,41 @@ test("renaming with stale links does not drain the renamed note", async () => {
 });
 
 // ---------------------------------------------------------------- review findings
+
+test("[review 2] a mirrored move can be undone, and undo puts all three notes back", async () => {
+	const { app, settings, history, notices } = setup([family], { "A.md": { children: ["[[B]]"] }, "B.md": { parent: "[[A]]" }, "C.md": {} });
+	await app.edit("C.md", (fm) => (fm.children = ["[[B]]"]));
+	await app.settle();
+	assert.equal(app.fm.get("B.md")!.parent, "[[C]]");
+	assert.equal(app.fm.get("A.md")!.children, undefined);
+	const batch = settings.history.at(-1)!;
+	assert.equal(batch.undoable, true, "a mirrored change is undoable");
+	assert.deepEqual(batch.ops[0], { path: "C.md", prop: "children", target: "B.md", action: "add" }, "the user's own edit leads the batch");
+	await history.undo(batch.id);
+	await app.settle();
+	assert.equal(app.fm.get("C.md")!.children, undefined);
+	assert.equal(app.fm.get("B.md")!.parent, "[[A]]");
+	assert.deepEqual(app.fm.get("A.md")!.children, ["[[B]]"]);
+	assert.equal(batch.undoable, false);
+	assert.ok(notices.at(-1)!.startsWith("Relate undid"));
+});
+
+test("[review 2] undoing part of a mirrored batch leaves the rest undoable", async () => {
+	const { app, settings, history } = setup([related], { "A.md": { related: ["[[B]]", "[[C]]"] }, "B.md": { related: ["[[A]]"] }, "C.md": { related: ["[[A]]"] } });
+	await app.edit("A.md", (fm) => (fm.related = []));
+	await app.settle();
+	assert.equal(app.fm.get("B.md")!.related, undefined);
+	assert.equal(app.fm.get("C.md")!.related, undefined);
+	const batch = settings.history.at(-1)!;
+	const forB = batch.ops.filter((op) => op.path === "B.md" || op.target === "B.md");
+	await history.undo(batch.id, forB);
+	await app.settle();
+	assert.deepEqual(app.fm.get("A.md")!.related, ["[[B]]"]);
+	assert.deepEqual(app.fm.get("B.md")!.related, ["[[A]]"]);
+	assert.equal(app.fm.get("C.md")!.related, undefined, "the other removal stays");
+	assert.equal(batch.undoable, true);
+	assert.match(batch.label, /partly undone/);
+});
 
 test("[1] a user edit to a note Relate just wrote is still mirrored", async () => {
 	const { app } = setup([related], { "A.md": {}, "B.md": {}, "C.md": {} });

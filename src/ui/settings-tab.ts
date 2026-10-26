@@ -362,7 +362,7 @@ export class RelateSettingTab extends PluginSettingTab {
 						setting.addButton((b) =>
 							b.setButtonText("Undo").onClick(async () => {
 								b.setDisabled(true);
-								await this.plugin.undoBatch(batch.id);
+								await this.plugin.history.undo(batch.id);
 								this.update();
 							})
 						);
