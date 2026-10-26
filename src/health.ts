@@ -50,6 +50,11 @@ export interface Health {
 	needs: Need[];
 }
 
+/** True when Check links has nothing to show: no one-way link, choice, loop or note that needs a link. */
+export function nothingToFix(h: Health): boolean {
+	return !h.missing.length && !h.conflicts.length && !h.loops.length && !h.needs.length;
+}
+
 /** A note as the rules see it: where it is, and its tags without "#". */
 export interface NoteFacts {
 	path: string;

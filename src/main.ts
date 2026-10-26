@@ -2,7 +2,7 @@ import { Notice, Plugin, TFile, normalizePath, type Events } from "obsidian";
 import { sidesOf, validateRelations, type Relation, type RelateSettings, type Side } from "./settings";
 import { EdgeIndex } from "./graph";
 import { Writer } from "./writer";
-import { SyncEngine } from "./sync";
+import { SyncEngine, type Outcome } from "./sync";
 import { SearchService } from "./search/service";
 import { ConnectionsView, VIEW_TYPE } from "./ui/connections-view";
 import { BROWSER_VIEW, BrowserView } from "./ui/browser-view";
@@ -328,9 +328,11 @@ export default class RelatePlugin extends Plugin {
 		});
 	}
 
-	async connect(file: TFile, side: Side, target: TFile): Promise<void> {
+	/** Links two notes on both sides and says what happened. Resolves to the outcome, with every note it changed. */
+	async connect(file: TFile, side: Side, target: TFile): Promise<Outcome> {
 		const out = await this.sync.connect(file, side, target);
 		this.sync.report(out, `Linked ${file.basename} and ${target.basename}.`);
+		return out;
 	}
 
 	private announced = "";
