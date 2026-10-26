@@ -184,6 +184,7 @@ export default class RelatePlugin extends Plugin {
 		this.semantic?.stop();
 		this.search?.stop();
 		void this.history?.flush();
+		for (const finish of [...this.waits]) finish();
 		if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
 		this.refreshTimer = null;
 	}
@@ -312,21 +313,28 @@ export default class RelatePlugin extends Plugin {
 		if (!waiting.size) return Promise.resolve();
 		return new Promise((resolve) => {
 			let ref: ReturnType<typeof this.app.metadataCache.on> | null = null;
+			let next: number | null = null;
+			// Each wait removes its own listener and timers when it ends, so none outlives it; unloading ends it early.
 			const finish = () => {
 				if (ref) this.app.metadataCache.offref(ref);
 				ref = null;
 				window.clearTimeout(timer);
+				if (next !== null) window.clearTimeout(next);
+				this.waits.delete(finish);
 				resolve();
 			};
 			const timer = window.setTimeout(finish, limit);
+			this.waits.add(finish);
 			ref = this.app.metadataCache.on("changed", (file) => {
 				waiting.delete(file.path);
 				// Relate's own listener updates the index first; this runs after it.
-				if (!waiting.size) window.setTimeout(finish, 0);
+				if (!waiting.size && next === null) next = window.setTimeout(finish, 0);
 			});
-			this.registerEvent(ref);
 		});
 	}
+
+	/** Waits started by `afterIndexed` that have not ended yet. */
+	private waits = new Set<() => void>();
 
 	/** Links two notes on both sides and says what happened. Resolves to the outcome, with every note it changed. */
 	async connect(file: TFile, side: Side, target: TFile): Promise<Outcome> {

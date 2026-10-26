@@ -308,7 +308,13 @@ export class SemanticIndex {
 		this.hashes.set(file.path, hash);
 		const store = this.store;
 		const model = this.embedder.id;
-		void store.deleteVectors([oldPath]).then(() => store.putVectors([{ path: file.path, hash, model, vec }]));
+		store
+			.deleteVectors([oldPath])
+			.then(() => store.putVectors([{ path: file.path, hash, model, vec }]))
+			.catch((e) => {
+				// After stop() closes the store, a rename still in flight has nothing left to update.
+				if (this.store === store) this.plugin.reportError("Moving a note in the meaning index", e);
+			});
 		// The title is part of the text, so the vector is refreshed too.
 		this.onModify(file);
 	}
@@ -317,7 +323,10 @@ export class SemanticIndex {
 		this.vectors.delete(path);
 		this.hashes.delete(path);
 		this.stamps.delete(path);
-		void this.store?.deleteVectors([path]);
+		const store = this.store;
+		store?.deleteVectors([path]).catch((e) => {
+			if (this.store === store) this.plugin.reportError("Removing a note from the meaning index", e);
+		});
 	}
 
 	/** Notes closest in meaning to `text`, optionally only among `within`. */
