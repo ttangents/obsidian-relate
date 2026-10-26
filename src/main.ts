@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, requireApiVersion, type Events } from "obsidian";
-import { normalizeSettings, sidesOf, validateRelations, type HistoryOp, type Relation, type RelateSettings, type Side } from "./settings";
+import { sidesOf, validateRelations, type HistoryOp, type Relation, type RelateSettings, type Side } from "./settings";
 import { EdgeIndex, traverse } from "./graph";
 import { Writer } from "./writer";
 import { SyncEngine } from "./sync";
@@ -18,6 +18,7 @@ import { baseBlock } from "./bases";
 import { icons } from "./ui/icons";
 import { laterVersion, recentNotes, unseenNotes, type ReleaseNote } from "./release-notes";
 import { WelcomeModal, WhatsNewModal } from "./ui/whats-new";
+import { SettingsStore } from "./settings-store";
 
 /** This device's copy of the newest release seen; see release-notes.ts. */
 const RELEASE_KEY = "relate-release-seen";
@@ -62,7 +63,9 @@ export const EVENT_CHANGED = "relate:changed";
 export const EVENT_UNLOAD = "relate:unload";
 
 export default class RelatePlugin extends Plugin {
+	/** The settings in use: the store's object, which a reload from sync updates in place. */
 	settings!: RelateSettings;
+	private store = new SettingsStore({ load: () => this.loadData(), save: (data) => this.saveData(data) });
 	index!: EdgeIndex;
 	writer!: Writer;
 	sync!: SyncEngine;
@@ -337,12 +340,10 @@ export default class RelatePlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		const data: unknown = await this.loadData();
-		const { settings, problems } = normalizeSettings(data);
-		this.settings = settings;
+		await this.store.load();
+		this.settings = this.store.settings;
+		const { problems } = this.store;
 		if (problems.length) {
-			// Keep the original file for diagnosis instead of overwriting it with the repaired version.
-			console.warn("Relate: settings file had problems", problems, data);
 			this.settings.errors = [...this.settings.errors, { time: Date.now(), where: "Settings file", message: problems.join(" ") }].slice(-5);
 			new Notice(`Relate found problems in its settings file and used safe values instead: ${problems[0]}`, 10000);
 		}
@@ -350,7 +351,26 @@ export default class RelatePlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		this.sidesCache = null;
-		await this.saveData(this.settings);
+		await this.store.save();
+	}
+
+	/**
+	 * Obsidian calls this when the settings file changes on disk, usually because sync brought a copy from another
+	 * device. Relate takes that copy, keeps history from both, and re-reads whatever the change affects, so its next
+	 * save never overwrites what the other device wrote.
+	 */
+	async onExternalSettingsChange(): Promise<void> {
+		if (!this.index) return;
+		const change = await this.store.reload();
+		if (!change) {
+			this.reportError("Settings from another device", new Error("The settings file that arrived by sync had problems, so Relate kept the settings it had."));
+			return;
+		}
+		this.sidesCache = null;
+		if (change.relations) this.relationsChanged();
+		if (change.meaning) void this.semantic.start();
+		this.settingTab?.update();
+		this.refreshViews();
 	}
 
 	/** Relationship sides. Empty while the relationship list has a problem, so nothing is written into the wrong property. */
