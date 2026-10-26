@@ -226,3 +226,11 @@ test("manifest, package and versions agree, in the form the directory requires",
   assert.ok(manifest.description.length < 250);
   assert.equal(manifest.isDesktopOnly, false);
 });
+
+test("[review 16] one plural and one basename serve every module", async () => {
+	const { plural, basename } = await import("../src/links");
+	assert.equal(plural(1, "note", "notes"), "1 note");
+	assert.equal(plural(3, "note", "notes"), "3 notes");
+	assert.equal(basename("Projects/Atlas.md"), "Atlas");
+	assert.equal(basename("Atlas.md"), "Atlas");
+});

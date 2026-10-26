@@ -3,6 +3,7 @@ import type RelatePlugin from "../main";
 import { chipToText, removeChip, replaceChip, type Chip } from "../search/parser";
 import type { SearchResult } from "../search/service";
 import { LinkResultsModal } from "./linking";
+import { basename } from "../links";
 
 function chipText(chip: Chip): string {
 	if (chip.kind === "relation") return chip.chain.map((c) => `${c.all ? "all " : ""}${c.label} of `).join("") + chip.note.title;
@@ -151,7 +152,7 @@ export class SearchModal extends SuggestModal<SearchResult> {
 			line.createSpan({ cls: "relate-path-note", text: r.file.basename });
 			for (const step of path) {
 				line.createSpan({ cls: "relate-path-prop", text: ` → ${step.prop}: ` });
-				const name = step.to.replace(/^.*\//, "").replace(/\.md$/, "");
+				const name = basename(step.to);
 				const a = line.createEl("a", { cls: "relate-path-note internal-link", text: name, href: "#" });
 				a.addEventListener("click", (e) => {
 					e.preventDefault();

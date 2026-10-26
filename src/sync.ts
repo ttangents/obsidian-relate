@@ -8,6 +8,7 @@ export type SyncHost = Pick<
 >;
 import { readEdges, type Edges } from "./graph";
 import type { HistoryOp, Side } from "./settings";
+import { basename as name } from "./links";
 import type { AddOptions, AddResult } from "./writer";
 import { computeHealth, findLoops, findNeeds, pathUp, upStep, type Conflict, type Health, type Missing } from "./health";
 
@@ -50,10 +51,6 @@ class Cancelled extends Error {
 class Journal {
 	ops: HistoryOp[] = [];
 	skipped: string[] = [];
-}
-
-function name(path: string): string {
-	return path.replace(/^.*\//, "").replace(/\.md$/, "");
 }
 
 /**

@@ -5,7 +5,7 @@ import type RelatePlugin from "../main";
 import type { Relation, Side } from "../settings";
 import { SearchModal } from "./search-modal";
 import { HealthModal } from "./modals";
-import { noteNamer } from "../links";
+import { basename, noteNamer } from "../links";
 
 export const BROWSER_VIEW = "relate-browser";
 
@@ -129,7 +129,7 @@ export class BrowserView extends ItemView {
 		b.addEventListener("click", onClick);
 	}
 
-	private namer: (path: string) => string = (p) => p.replace(/^.*\//, "").replace(/\.md$/, "");
+	private namer: (path: string) => string = basename;
 
 	private noteName(path: string): string {
 		return this.namer(path);

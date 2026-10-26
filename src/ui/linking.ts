@@ -2,11 +2,7 @@ import { AbstractInputSuggest, App, Menu, Modal, Notice, Setting, TFile, TFolder
 import type RelatePlugin from "../main";
 import type { Side } from "../settings";
 import { NotePickerModal, SidePickerModal } from "./modals";
-import { noteNamer } from "../links";
-
-function plural(n: number, one: string, many: string): string {
-	return `${n} ${n === 1 ? one : many}`;
-}
+import { noteNamer, plural } from "../links";
 
 /** Suggests existing folders as you type. */
 class FolderSuggest extends AbstractInputSuggest<TFolder> {

@@ -1,3 +1,13 @@
+/** "3 notes", "1 note": a count with the word that fits it. */
+export function plural(n: number, one: string, many: string): string {
+	return `${n} ${n === 1 ? one : many}`;
+}
+
+/** A note's name from its path: "Projects/Atlas.md" -> "Atlas". */
+export function basename(path: string): string {
+	return path.replace(/^.*\//, "").replace(/\.md$/, "");
+}
+
 /** Returns the link path inside a frontmatter wikilink string such as "[[Note|Alias]]", or null. */
 export function parseWikilink(value: unknown): string | null {
 	if (typeof value !== "string") return null;
@@ -39,11 +49,10 @@ export function keyBelongsTo(key: string, prop: string): boolean {
  * so "Notes (Projects/Atlas)" and "Notes (Projects/Orion)" stay distinguishable.
  */
 export function noteNamer(paths: Iterable<string>): (path: string) => string {
-	const base = (p: string) => p.replace(/^.*\//, "").replace(/\.md$/, "");
 	const counts = new Map<string, number>();
-	for (const p of paths) counts.set(base(p), (counts.get(base(p)) ?? 0) + 1);
+	for (const p of paths) counts.set(basename(p), (counts.get(basename(p)) ?? 0) + 1);
 	return (p: string) => {
-		const b = base(p);
+		const b = basename(p);
 		if ((counts.get(b) ?? 0) < 2) return b;
 		const folder = p.includes("/") ? p.replace(/\/[^/]*$/, "") : "vault root";
 		return `${b} (${folder})`;
