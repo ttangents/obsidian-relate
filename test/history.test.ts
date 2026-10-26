@@ -30,7 +30,13 @@ const onDisk = (files: FakeFiles) => JSON.parse(files.data.get(PATH) ?? "[]") as
 
 test("[review 6] history from an earlier version moves out of the settings file without loss", async () => {
 	const settingsFile = { disk: { relations: [], autoSync: true, history: [batch("old", 1)] } as unknown };
-	const store = new SettingsStore({ load: async () => settingsFile.disk, save: async (d) => void (settingsFile.disk = JSON.parse(JSON.stringify(d)) as unknown) });
+	const store = new SettingsStore({
+		load: async () => settingsFile.disk,
+		save: async (d) => void (settingsFile.disk = JSON.parse(JSON.stringify(d)) as unknown),
+		files: new FakeFiles(),
+		dataPath: "data.json",
+		backupPath: "data.backup.json",
+	});
 	await store.load();
 	assert.deepEqual(store.legacyHistory.map((b) => b.id), ["old"]);
 	const { history, files } = setup();
