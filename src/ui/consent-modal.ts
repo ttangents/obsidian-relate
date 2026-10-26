@@ -39,3 +39,39 @@ export class ConsentModal extends Modal {
 		if (!this.answered) this.onCancel?.();
 	}
 }
+
+/** Asks before Relate sends the text of notes to a server, naming the exact address. */
+export class ServerConsentModal extends Modal {
+	private answered = false;
+
+	constructor(plugin: RelatePlugin, private url: string, private onYes: () => Promise<void>, private onCancel?: () => void) {
+		super(plugin.app);
+		this.modalEl.addClass("relate-modal");
+	}
+
+	onOpen(): void {
+		this.titleEl.setText("Send notes to your server?");
+		const { contentEl } = this;
+		const intro = contentEl.createDiv({ cls: "relate-modal-text" });
+		intro.appendText("Search by meaning on this device sends the text of your notes, and what you type in search, to ");
+		intro.createEl("code", { text: this.url });
+		intro.appendText(". That server turns them into numbers Relate can compare.");
+		const list = contentEl.createEl("ul", { cls: "relate-modal-text relate-consent-list" });
+		list.createEl("li", { text: "Relate sends note text to this address only, and only from this device. Each device asks for itself." });
+		list.createEl("li", { text: "If you change the address, Relate asks again before it sends anything." });
+		list.createEl("li", { text: "You can turn search by meaning off at any time in Relate's settings." });
+		const footer = contentEl.createDiv({ cls: "modal-button-container" });
+		footer.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+		const yes = footer.createEl("button", { cls: "mod-cta", text: "Send notes to this server" });
+		yes.addEventListener("click", () => {
+			this.answered = true;
+			this.close();
+			void this.onYes();
+		});
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+		if (!this.answered) this.onCancel?.();
+	}
+}

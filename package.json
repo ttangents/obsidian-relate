@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "bundle": "node esbuild.config.mjs production",
     "build": "npm run typecheck && npm run lint && npm run bundle",
-    "test": "tsx --test test/pure.test.ts test/paths.test.ts test/semantic.test.ts test/settings-store.test.ts && esbuild test/sync.test.ts --bundle --platform=node --format=esm --alias:obsidian=./test/fake-obsidian.ts --outfile=.test/sync.mjs --log-level=warning && node --test .test/sync.mjs"
+    "test": "tsx --test test/pure.test.ts test/paths.test.ts test/semantic.test.ts test/settings-store.test.ts test/consent.test.ts && esbuild test/sync.test.ts test/semantic-index.test.ts --bundle --platform=node --format=esm --alias:obsidian=./test/fake-obsidian.ts --outdir=.test --log-level=warning && node --test .test/*.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

@@ -22,6 +22,20 @@ export function getLinkpath(link: string): string {
 	return link.split(/[#^|]/)[0];
 }
 
+export const Platform = { isMobile: false, isMacOS: false };
+
+/** Every request Relate makes, and the reply the test gives. Throws when a test has not set a reply. */
+export const network = {
+	requests: [] as { url: string; body?: string }[],
+	reply: null as ((url: string, body?: string) => unknown) | null,
+};
+
+export async function requestUrl(req: { url: string; body?: string }): Promise<{ json: unknown; arrayBuffer: ArrayBuffer }> {
+	network.requests.push({ url: req.url, body: req.body });
+	if (!network.reply) throw new Error(`unexpected request to ${req.url}`);
+	return { json: network.reply(req.url, req.body), arrayBuffer: new ArrayBuffer(0) };
+}
+
 export class Notice {
 	static messages: string[] = [];
 	constructor(msg: unknown) {
@@ -111,6 +125,16 @@ export class FakeApp {
 			}
 		}
 		throw new Error("did not settle");
+	}
+
+	/** Obsidian's per-vault local storage. */
+	local = new Map<string, unknown>();
+	loadLocalStorage(key: string): unknown {
+		return this.local.get(key) ?? null;
+	}
+	saveLocalStorage(key: string, value: unknown): void {
+		if (value === null) this.local.delete(key);
+		else this.local.set(key, value);
 	}
 
 	onChanged(fn: (f: TFile) => void): void {
