@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, requireApiVersion, type Events } from "obsidian";
-import { sidesOf, validateRelations, type HistoryOp, type Relation, type RelateSettings, type Side } from "./settings";
+import { sidesOf, validateRelations, type Relation, type RelateSettings, type Side } from "./settings";
 import { EdgeIndex, traverse } from "./graph";
 import { Writer } from "./writer";
 import { SyncEngine } from "./sync";
@@ -19,12 +19,11 @@ import { icons } from "./ui/icons";
 import { laterVersion, recentNotes, unseenNotes, type ReleaseNote } from "./release-notes";
 import { WelcomeModal, WhatsNewModal } from "./ui/whats-new";
 import { SettingsStore } from "./settings-store";
+import { History } from "./history";
 
 /** This device's copy of the newest release seen; see release-notes.ts. */
 const RELEASE_KEY = "relate-release-seen";
 
-const MAX_HISTORY = 30;
-const MAX_OPS_PER_BATCH = 5000;
 const MAX_CHAIN_DEPTH = 12;
 
 /**
@@ -68,6 +67,7 @@ export default class RelatePlugin extends Plugin {
 	private store = new SettingsStore({ load: () => this.loadData(), save: (data) => this.saveData(data) });
 	index!: EdgeIndex;
 	writer!: Writer;
+	history!: History;
 	sync!: SyncEngine;
 	search!: SearchService;
 	semantic!: SemanticIndex;
@@ -82,6 +82,12 @@ export default class RelatePlugin extends Plugin {
 		this.reviewRelease(!this.settings.welcomed);
 		this.index = new EdgeIndex(this.app, () => new Set(this.sides().keys()));
 		this.writer = new Writer(this.app);
+		this.history = new History({
+			batches: () => this.settings.history,
+			save: () => void this.saveSettings(),
+			reverse: (label, ops) => this.sync.undo(label, ops),
+			notify: (message, ms) => new Notice(message, ms),
+		});
 		this.sync = new SyncEngine(this);
 		this.search = new SearchService(this);
 		this.semantic = new SemanticIndex(this);
@@ -254,12 +260,12 @@ export default class RelatePlugin extends Plugin {
 			id: "undo",
 			name: "Undo the last change",
 			callback: async () => {
-				const last = [...this.settings.history].reverse().find((b) => b.undoable);
+				const last = this.history.latest();
 				if (!last) {
 					new Notice("Relate has no change to undo.");
 					return;
 				}
-				await this.undoBatch(last.id);
+				await this.history.undo(last.id);
 			},
 		});
 
@@ -528,43 +534,6 @@ export default class RelatePlugin extends Plugin {
 	async connect(file: TFile, side: Side, target: TFile): Promise<void> {
 		const out = await this.sync.connect(file, side, target);
 		this.sync.report(out, `Linked ${file.basename} and ${target.basename}.`);
-	}
-
-	record(label: string, ops: HistoryOp[], undoable: boolean): void {
-		this.settings.history.push({
-			id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-			time: Date.now(),
-			label,
-			ops: ops.slice(0, MAX_OPS_PER_BATCH),
-			undoable: undoable && ops.length <= MAX_OPS_PER_BATCH,
-		});
-		if (this.settings.history.length > MAX_HISTORY) this.settings.history.splice(0, this.settings.history.length - MAX_HISTORY);
-		void this.saveSettings();
-	}
-
-	/**
-	 * Undoes a recorded batch. The batch is marked undone only when every change was reversed. Anything that could
-	 * not be reversed stays in the batch, so the user can try again, and the notice says why.
-	 */
-	async undoBatch(id: string): Promise<void> {
-		const batch = this.settings.history.find((b) => b.id === id);
-		if (!batch || !batch.undoable) return;
-		const label = batch.label.replace(/ \(partly undone\)$/, "");
-		const result = await this.sync.undo(label, batch.ops);
-		if (!result.unresolved.length) {
-			batch.undoable = false;
-			batch.label = `${label} (undone)`;
-			new Notice(`Relate undid “${label}”.`);
-		} else {
-			batch.ops = result.unresolved;
-			batch.label = `${label} (partly undone)`;
-			const n = result.unresolved.length;
-			new Notice(
-				`Relate undid ${result.done} of ${result.done + n} changes in “${label}”. ${n === 1 ? "One change" : `${n} changes`} could not be undone: ${[...new Set(result.reasons)].join(" ")} ${n === 1 ? "It stays" : "They stay"} under Recent changes, so you can try again.`,
-				12000
-			);
-		}
-		await this.saveSettings();
 	}
 
 	private announced = "";

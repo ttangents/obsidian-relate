@@ -4,7 +4,7 @@ import type RelatePlugin from "./main";
 /** What the sync engine needs from the plugin, and nothing more. */
 export type SyncHost = Pick<
 	RelatePlugin,
-	"app" | "index" | "record" | "refreshViews" | "registerEvent" | "relationsValid" | "reportError" | "settings" | "sides" | "writer"
+	"app" | "history" | "index" | "refreshViews" | "registerEvent" | "relationsValid" | "reportError" | "settings" | "sides" | "writer"
 >;
 import { readEdges, type Edges } from "./graph";
 import type { HistoryOp, Side } from "./settings";
@@ -278,7 +278,7 @@ export class SyncEngine {
 			}
 		});
 		if (this.stopped && !error && !j.ops.length) error = "Relate stopped before finishing.";
-		if (j.ops.length) this.plugin.record(error ? `${label} (stopped partway)` : label, j.ops, undoable);
+		if (j.ops.length) this.plugin.history.record(error ? `${label} (stopped partway)` : label, j.ops, undoable);
 		if (j.ops.length || error) {
 			this.healthCache = null;
 			this.plugin.refreshViews();
@@ -286,20 +286,24 @@ export class SyncEngine {
 		return { applied: j.ops, skipped: j.skipped, error };
 	}
 
-	/** Makes `target` list `source` back. Moves it from another note when the other side holds only one link. */
-	private async addBack(j: Journal, source: TFile, side: Side, target: TFile, notices: string[]): Promise<void> {
+	/**
+	 * Makes `target` list `source` back. Moves it from another note when the other side holds only one link, and
+	 * then returns the message that says so.
+	 */
+	private async addBack(j: Journal, source: TFile, side: Side, target: TFile, notices: string[]): Promise<string | null> {
 		const r = await this.addOne(j, target, side.inverse, source, side.inverseOne);
 		if (r.blocked) {
 			notices.push(`Relate did not change ${target.basename}, because it already lists more than one ${side.inverse}. Run Check links to choose one.`);
-			return;
+			return null;
 		}
 		if (r.replaced && r.replaced !== source.path) {
 			const old = this.file(r.replaced);
 			if (old) {
 				await this.removeOne(j, old, side.prop, target.path);
-				notices.push(`Moved ${target.basename} from ${old.basename} to ${source.basename}.`);
+				return `Moved ${target.basename} from ${old.basename} to ${source.basename}.`;
 			}
 		}
+		return null;
 	}
 
 	// ----------------------------------------------------------------- mirroring
@@ -331,13 +335,22 @@ export class SyncEngine {
 		const sides = this.plugin.sides();
 		const j = new Journal();
 		const notices: string[] = [];
-		const removals: { target: TFile; prop: string; text: string }[] = [];
+		// Each change on another note, with the user's own edit that caused it, so its notice can offer Undo.
+		const undoable: { message: string; ops: HistoryOp[] }[] = [];
 		let failed: unknown = null;
 		try {
 			for (const [prop, t] of added) {
 				const side = sides.get(prop);
 				const target = this.file(t);
-				if (side && target && target !== file) await this.addBack(j, file, side, target, notices);
+				if (side && target && target !== file) {
+					const start = j.ops.length;
+					const moved = await this.addBack(j, file, side, target, notices);
+					if (j.ops.length > start) {
+						// The user's edit leads the changes it caused, so undo reverses it last and leaves every note as it was.
+						j.ops.splice(start, 0, { path: file.path, prop, target: t, action: "add" });
+						if (moved) undoable.push({ message: moved, ops: j.ops.slice(start) });
+					}
+				}
 				// Only now is this link handled. If a write above failed, the next attempt sees it again.
 				this.snap(file.path, prop, t, true);
 			}
@@ -345,9 +358,10 @@ export class SyncEngine {
 				const side = sides.get(prop);
 				const target = this.file(t);
 				if (side && target && target !== file && settings.mirrorRemovals) {
-					const before = j.ops.length;
+					const start = j.ops.length;
 					if (await this.removeOne(j, target, side.inverse, file.path)) {
-						removals.push({ target, prop: side.inverse, text: j.ops[before].text ?? `[[${file.basename}]]` });
+						j.ops.splice(start, 0, { path: file.path, prop, target: t, action: "remove" });
+						undoable.push({ message: `Also removed ${file.basename} from ${target.basename}'s ${side.inverse}.`, ops: j.ops.slice(start) });
 					}
 				}
 				this.snap(file.path, prop, t, false);
@@ -356,10 +370,12 @@ export class SyncEngine {
 		} catch (e) {
 			failed = e;
 		}
-		if (j.ops.length) this.plugin.record(`Updated notes linked from ${file.basename}`, j.ops, false);
+		if (j.ops.length) {
+			const id = this.plugin.history.record(`Updated notes linked from ${file.basename}`, j.ops, true);
+			for (const u of undoable) this.undoNotice(u.message, () => this.plugin.history.undo(id, u.ops));
+			this.healthCache = null;
+		}
 		for (const n of notices) new Notice(n, 7000);
-		for (const r of removals) this.removalNotice(file, r.target, r.prop, r.text);
-		if (j.ops.length) this.healthCache = null;
 
 		if (failed && !(failed instanceof Cancelled)) {
 			const n = this.attempts.get(file.path) ?? 0;
@@ -375,29 +391,18 @@ export class SyncEngine {
 		}
 	}
 
-	/** Tells the user about a removal on another note, with an Undo that puts the link back on both notes. */
-	private removalNotice(source: TFile, target: TFile, prop: string, text: string): void {
+	/** Tells the user about a change on another note, with an Undo that puts every note back as it was. */
+	private undoNotice(message: string, undo: () => Promise<void>): void {
 		const frag = createFragment((f) => {
-			f.appendText(`Also removed ${source.basename} from ${target.basename}'s ${prop}. `);
-			const undo = f.createEl("a", { text: "Undo", href: "#" });
-			undo.addEventListener("click", (e) => {
+			f.appendText(`${message} `);
+			const link = f.createEl("a", { text: "Undo", href: "#" });
+			link.addEventListener("click", (e) => {
 				e.preventDefault();
 				notice.hide();
-				void this.restore(source, target, prop, text);
+				void undo();
 			});
 		});
 		const notice = new Notice(frag, 8000);
-	}
-
-	private async restore(source: TFile, target: TFile, prop: string, text: string): Promise<void> {
-		const side = this.plugin.sides().get(prop);
-		if (!side) return;
-		const out = await this.batch(`Restored the link between ${source.basename} and ${target.basename}`, true, async (j) => {
-			await this.addOne(j, target, prop, source, side.one, { replace: false, text });
-			const own = await this.addOne(j, source, side.inverse, target, side.inverseOne, { replace: false });
-			if (own.blocked) j.skipped.push(`${source.basename} already has a ${side.inverse}, so Relate could not put ${target.basename} back.`);
-		});
-		this.report(out, "Relate restored the link.");
 	}
 
 	// ----------------------------------------------------------------- explicit actions
