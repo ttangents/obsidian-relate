@@ -154,7 +154,7 @@ export class BrowserView extends ItemView {
 		if (!r) {
 			const counts = new Map<string, number>();
 			for (const f of this.app.vault.getMarkdownFiles()) {
-				const n = this.plugin.connected(f.path).size;
+				const n = this.plugin.queries.connected(f.path).size;
 				if (n) counts.set(f.path, n);
 			}
 			paths = [...counts.keys()].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0) || this.noteName(a).localeCompare(this.noteName(b)));
@@ -162,11 +162,11 @@ export class BrowserView extends ItemView {
 			// Starting notes are the ones others point to: projects for "project", parents for "parent".
 			const hubs = new Set<string>();
 			for (const f of this.app.vault.getMarkdownFiles()) {
-				if (this.plugin.related(f.path, r.inverse, false).size) hubs.add(f.path);
+				if (this.plugin.queries.related(f.path, r.inverse, false).size) hubs.add(f.path);
 			}
 			// In a tree, start from the top: hubs that have no parent of their own.
 			if (r.propertyOne && r.property !== r.inverse) {
-				for (const h of [...hubs]) if (this.plugin.related(h, r.property, false).size) hubs.delete(h);
+				for (const h of [...hubs]) if (this.plugin.queries.related(h, r.property, false).size) hubs.delete(h);
 			}
 			paths = [...hubs].sort((a, b) => this.noteName(a).localeCompare(this.noteName(b)));
 		}
@@ -273,7 +273,7 @@ export class BrowserView extends ItemView {
 				head.createSpan({ cls: "relate-col-heading-count", text: String(g.entries.length) });
 			}
 			for (const e of g.entries) {
-				const n = this.plugin.connected(e.path).size;
+				const n = this.plugin.queries.connected(e.path).size;
 				const row = col.createDiv({
 					cls: "tree-item-self is-clickable relate-col-item" + (e.path === selected ? " is-active" : "") + (e.oneWay ? " is-one-way" : ""),
 					attr: { "data-path": e.path },

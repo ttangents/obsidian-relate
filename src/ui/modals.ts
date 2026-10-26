@@ -1,9 +1,9 @@
-import { App, FuzzySuggestModal, Modal, Notice, Setting, SuggestModal, TFile, getLinkpath } from "obsidian";
+import { App, FuzzySuggestModal, Modal, Notice, Setting, SuggestModal, TFile } from "obsidian";
 import type RelatePlugin from "../main";
 import type { Side } from "../settings";
-import { availablePresets, sidesOf, suggestInverse, type Relation } from "../settings";
-import { computeHealth, MapEdges, type Need } from "../health";
-import { readEdges } from "../graph";
+import { availablePresets, type Relation } from "../settings";
+import type { Need } from "../health";
+import { previewRelations, scanProperties, type PropertyUse } from "../adopt";
 import type { Conflict, Health, Loop, Missing } from "../sync";
 import { noteNamer } from "../links";
 
@@ -69,12 +69,9 @@ export function linkAs(plugin: RelatePlugin, file: TFile, side?: Side): void {
 	else new SidePickerModal(plugin, file, pickNote).open();
 }
 
-interface Candidate {
-	prop: string;
-	notes: number;
-	links: number;
+/** A property the scan found, and whether the user turned it on. */
+interface Candidate extends PropertyUse {
 	chosen: boolean;
-	relation: Relation;
 }
 
 /** Finds properties that already link notes and offers to turn them into relationships. */
@@ -92,40 +89,12 @@ export class AdoptModal extends Modal {
 		this.modalEl.addClass("relate-modal");
 	}
 
-	/** Properties whose values link to other notes. Links to images, PDFs and other files do not count. */
+	/** Properties whose values link to other notes, from the domain scan. */
 	private scan(): Candidate[] {
-		const taken = new Set(this.plugin.sides().keys());
-		const stats = new Map<string, { notes: Set<string>; links: number }>();
-		for (const f of this.app.vault.getMarkdownFiles()) {
-			const links = this.app.metadataCache.getFileCache(f)?.frontmatterLinks;
-			if (!links) continue;
-			for (const l of links) {
-				const prop = l.key.replace(/\.\d+$/, "");
-				if (taken.has(prop)) continue;
-				const dest = this.app.metadataCache.getFirstLinkpathDest(getLinkpath(l.link), f.path);
-				if (!dest || dest.extension !== "md") continue;
-				const s = stats.get(prop) ?? { notes: new Set<string>(), links: 0 };
-				s.notes.add(f.path);
-				s.links++;
-				stats.set(prop, s);
-			}
-		}
-		const all = [...stats.entries()];
-		const used = all.filter(([, s]) => s.notes.size >= 2).sort((a, b) => b[1].links - a[1].links);
-		this.hiddenRare = all.length - used.length;
-		this.hiddenMore = Math.max(0, used.length - 15);
-		return used
-			.slice(0, 15)
-			.map(([prop, s]) => {
-				const g = suggestInverse(prop);
-				return {
-					prop,
-					notes: s.notes.size,
-					links: s.links,
-					chosen: false,
-					relation: { property: prop, inverse: g.inverse, propertyOne: g.propertyOne, inverseOne: g.inverseOne, chains: false },
-				};
-			});
+		const found = scanProperties(this.app, new Set(this.plugin.sides().keys()));
+		this.hiddenRare = found.hiddenRare;
+		this.hiddenMore = found.hiddenMore;
+		return found.candidates.map((c) => ({ ...c, chosen: false }));
 	}
 
 	onOpen(): void {
@@ -235,22 +204,6 @@ export class AdoptModal extends Modal {
 		this.previewTimer = window.setTimeout(() => this.updatePreview(), 200);
 	}
 
-	/** Runs the same check Check links uses on the chosen relationships, without writing anything. */
-	private dryRun(relations: Relation[]): { links: number; notes: number; choices: number } {
-		const props = new Set<string>();
-		for (const r of relations) {
-			props.add(r.property);
-			props.add(r.inverse);
-		}
-		const edges = new Map<string, Map<string, Set<string>>>();
-		for (const f of this.app.vault.getMarkdownFiles()) {
-			const e = readEdges(this.app, f, props);
-			if (e.size) edges.set(f.path, e);
-		}
-		const { missing, conflicts } = computeHealth(new MapEdges(edges), sidesOf(relations));
-		return { links: missing.length, notes: new Set(missing.map((m) => m.file)).size, choices: conflicts.length };
-	}
-
 	private updatePreview(): void {
 		const rels = this.chosen();
 		if (!rels.length) {
@@ -258,7 +211,7 @@ export class AdoptModal extends Modal {
 			this.applyBtn.disabled = true;
 			return;
 		}
-		const { links, notes, choices } = this.dryRun(rels);
+		const { links, notes, choices } = previewRelations(this.app, rels);
 		this.applyBtn.disabled = false;
 		const parts = [
 			links

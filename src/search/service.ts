@@ -2,7 +2,7 @@ import { TFile, getAllTags } from "obsidian";
 import type RelatePlugin from "../main";
 
 /** What search needs from the plugin, and nothing more. */
-export type SearchHost = Pick<RelatePlugin, "app" | "connected" | "index" | "relatedDetail" | "reportError" | "semantic" | "settings" | "sides">;
+export type SearchHost = Pick<RelatePlugin, "app" | "index" | "queries" | "reportError" | "semantic" | "settings" | "sides">;
 import { LexicalIndex } from "./lexical";
 import { parseQuery, type NoteRef, type ParsedQuery } from "./parser";
 import { labelOf, normalizeTitle, stripLeadingTag } from "../links";
@@ -209,7 +209,7 @@ export class SearchService {
 			let truncated = false;
 			let followed = false;
 			for (const p of current) {
-				const r = this.plugin.relatedDetail(p, step.prop, step.all);
+				const r = this.plugin.queries.relatedDetail(p, step.prop, step.all);
 				for (const q of r.paths) next.add(q);
 				truncated ||= r.truncated;
 				followed ||= r.followed;
@@ -259,7 +259,7 @@ export class SearchService {
 				narrow(paths, why);
 				if (chip.chain.length > 1 || chip.all) explain.push(chip);
 			} else if (chip.kind === "connected") {
-				narrow(this.plugin.connected(chip.note.path), `connected to ${chip.note.title}`);
+				narrow(this.plugin.queries.connected(chip.note.path), `connected to ${chip.note.title}`);
 			} else if (chip.kind === "missing") {
 				narrow(this.withoutLinks(chip.prop), chip.label);
 			} else if (chip.kind === "folder") {

@@ -1,68 +1,34 @@
-import { Notice, Plugin, TFile, requireApiVersion, type Events } from "obsidian";
+import { Notice, Plugin, TFile, type Events } from "obsidian";
 import { sidesOf, validateRelations, type Relation, type RelateSettings, type Side } from "./settings";
-import { EdgeIndex, traverse } from "./graph";
+import { EdgeIndex } from "./graph";
 import { Writer } from "./writer";
 import { SyncEngine } from "./sync";
 import { SearchService } from "./search/service";
 import { ConnectionsView, VIEW_TYPE } from "./ui/connections-view";
 import { BROWSER_VIEW, BrowserView } from "./ui/browser-view";
 import { SearchModal } from "./ui/search-modal";
-import { AdoptModal, HealthModal, SidePickerModal, linkAs } from "./ui/modals";
-import { LinkManyModal, NewLinkedNoteModal, linkSelected } from "./ui/linking";
+import { AdoptModal } from "./ui/modals";
 import { RelateSettingTab } from "./ui/settings-tab";
 import { SemanticIndex } from "./semantic/index";
 import { ConsentModal, ServerConsentModal } from "./ui/consent-modal";
-import { Consent, meaningPlan } from "./semantic/consent";
+import { Consent, meaningPlan, type DeviceStorage } from "./semantic/consent";
 import { BUILTIN } from "./semantic/embedders";
-import { BUSY_NOTE, showPaths } from "./ui/paths-modal";
-import { findPaths, stepsFrom } from "./paths";
-import { baseBlock } from "./bases";
 import { icons } from "./ui/icons";
-import { laterVersion, recentNotes, unseenNotes, type ReleaseNote } from "./release-notes";
+import { recentNotes } from "./release-notes";
+import { ReleaseState } from "./release-state";
 import { WelcomeModal, WhatsNewModal } from "./ui/whats-new";
 import { SettingsStore } from "./settings-store";
 import { History } from "./history";
+import { RelationQueries } from "./queries";
+import { registerCommands } from "./ui/commands";
+import { EVENT_CHANGED, EVENT_READY, EVENT_REQUEST, EVENT_UNLOAD, createApi, type RelateApi } from "./api";
 
-/** This device's copy of the newest release seen; see release-notes.ts. */
-const RELEASE_KEY = "relate-release-seen";
-
-const MAX_CHAIN_DEPTH = 12;
+export type { RelateApi } from "./api";
 
 /**
- * The contract other plugins use. Read it from the `relate:ready` workspace event, never from Relate's plugin
- * instance. `version` changes only when a change would break a caller; new members can appear within a version.
+ * Relate's composition root. It builds the services, wires them to Obsidian's events, and registers the views,
+ * commands and settings. The services hold the logic; this class only connects them.
  */
-export interface RelateApi {
-	readonly version: 1;
-	/** Notes related to `path` through `prop`, in either direction. Set `all` to follow chains. */
-	related(path: string, prop: string, all?: boolean): string[];
-	/** Runs a search query exactly as the search box does and returns note paths with reasons. */
-	search(query: string): Promise<{ path: string; reasons: string[]; paths: { from: string; prop: string; to: string }[][] }[]>;
-	/** Every relationship of the note at `path`, named from its side, whichever note records the link. */
-	connections(path: string): { prop: string; path: string }[];
-	/** True when search by meaning is on and ready on this device, so `similar` can return notes. */
-	meaningReady(): boolean;
-	/** Relationship property pairs as configured. */
-	relationships(): { property: string; inverse: string }[];
-	/** Notes closest in meaning to the note at `path`, best first. Empty when search by meaning is off. */
-	similar(path: string, limit?: number): { path: string; score: number }[];
-	/**
-	 * Short chains of relationships from one note to another, shortest first. Each step is
-	 * `{ from, prop, to }`, with `prop` named from the `from` note's side.
-	 */
-	paths(from: string, to: string, opts?: { property?: string; maxSteps?: number; limit?: number; skipBusy?: boolean }): { from: string; prop: string; to: string }[][];
-	/** Links two notes on both sides, as the Connections panel does. Resolves to false, with a reason, when nothing changed. */
-	connect(from: string, property: string, to: string): Promise<{ ok: boolean; reason?: string }>;
-	/** Removes a link from both notes. */
-	disconnect(from: string, property: string, to: string): Promise<{ ok: boolean; reason?: string }>;
-}
-
-/** Workspace events that make up Relate's public contract. */
-export const EVENT_READY = "relate:ready";
-export const EVENT_REQUEST = "relate:request";
-export const EVENT_CHANGED = "relate:changed";
-export const EVENT_UNLOAD = "relate:unload";
-
 export default class RelatePlugin extends Plugin {
 	/** The settings in use: the store's object, which a reload from sync updates in place. */
 	settings!: RelateSettings;
@@ -75,7 +41,11 @@ export default class RelatePlugin extends Plugin {
 	semantic!: SemanticIndex;
 	/** What this device agreed to: the model download, and the server it may send note text to. */
 	consent!: Consent;
+	queries!: RelationQueries;
+	/** Release notes waiting for the reader. */
+	releases!: ReleaseState;
 	private statusEl: HTMLElement | null = null;
+	/** The frozen API every other plugin receives with `relate:ready`. */
 	api!: RelateApi;
 	private sidesCache: Map<string, Side> | null = null;
 	private settingTab!: RelateSettingTab;
@@ -83,8 +53,11 @@ export default class RelatePlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		this.reviewRelease(!this.settings.welcomed);
+		const storage: DeviceStorage = { load: (key): unknown => this.app.loadLocalStorage(key), save: (key, value) => this.app.saveLocalStorage(key, value) };
+		this.releases = new ReleaseState({ version: this.manifest.version, storage, settings: this.settings, save: () => void this.saveSettings() });
+		this.releases.review(!this.settings.welcomed);
 		this.index = new EdgeIndex(this.app, () => new Set(this.sides().keys()));
+		this.queries = new RelationQueries(this.index, () => this.sides());
 		this.writer = new Writer(this.app);
 		this.history = new History({
 			batches: () => this.settings.history,
@@ -94,38 +67,23 @@ export default class RelatePlugin extends Plugin {
 		});
 		this.sync = new SyncEngine(this);
 		this.search = new SearchService(this);
-		this.consent = new Consent({ load: (key): unknown => this.app.loadLocalStorage(key), save: (key, value) => this.app.saveLocalStorage(key, value) }, BUILTIN.id);
+		this.consent = new Consent(storage, BUILTIN.id);
 		this.semantic = new SemanticIndex(this, this.consent);
-		this.api = {
-			version: 1,
-			connections: (path) => stepsFrom(this.index, this.sides(), path).map((s) => ({ prop: s.prop, path: s.to })),
-			meaningReady: () => this.semantic.ready,
-			related: (path, prop, all = false) => [...this.related(path, prop, all)],
-			search: async (q) =>
-				(await this.search.run(this.search.parse(String(q)), { snippets: false })).map((r) => ({
-					path: r.file.path,
-					reasons: r.reasons,
-					paths: r.paths.map((p) => p.map((s) => ({ ...s }))),
-				})),
-			relationships: () => this.settings.relations.map((r) => ({ property: r.property, inverse: r.inverse })),
-			similar: (path, limit = 5) => this.semantic.similar(path, limit),
-			paths: (from, to, opts = {}) => {
-				const sides = this.sides();
-				const side = opts.property ? sides.get(opts.property) : undefined;
-				if (opts.property && !side) return [];
-				const clamp = (n: number | undefined, d: number, max: number) => Math.max(1, Math.min(max, Math.floor(n ?? d) || d));
-				return findPaths(this.index, sides, from, to, {
-					props: side ? new Set([side.prop, side.inverse]) : undefined,
-					maxSteps: clamp(opts.maxSteps, 6, 10),
-					limit: clamp(opts.limit, 5, 20),
-					busy: opts.skipBusy ? BUSY_NOTE : null,
-				});
+		this.api = createApi({
+			index: this.index,
+			sides: () => this.sides(),
+			relations: () => this.settings.relations,
+			queries: this.queries,
+			search: (q) => this.search.run(this.search.parse(q), { snippets: false }),
+			semantic: this.semantic,
+			note: (path) => {
+				const f = this.app.vault.getAbstractFileByPath(path);
+				return f instanceof TFile && f.extension === "md" ? f : null;
 			},
-			connect: (from, property, to) => this.apiChange(from, property, to, true),
-			disconnect: (from, property, to) => this.apiChange(from, property, to, false),
-		};
-		// Every plugin gets the same object, so none can change it for the others.
-		Object.freeze(this.api);
+			connect: (file, side, target) => this.sync.connect(file, side, target),
+			disconnect: (file, side, targetPath) => this.sync.disconnect(file, side, targetPath),
+			changed: () => this.refreshViews(),
+		});
 
 		this.registerView(VIEW_TYPE, (leaf) => new ConnectionsView(leaf, this));
 		this.registerView(BROWSER_VIEW, (leaf) => new BrowserView(leaf, this));
@@ -133,117 +91,7 @@ export default class RelatePlugin extends Plugin {
 		this.addSettingTab(this.settingTab);
 		this.addRibbonIcon(icons.main(), "Open the relationship browser", () => void this.openBrowser());
 
-		this.addCommand({ id: "search", name: "Search notes", callback: () => new SearchModal(this).open() });
-		this.addCommand({
-			id: "link-as",
-			name: "Link this note to another note",
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveFile();
-				if (!file || file.extension !== "md") return false;
-				if (!checking) linkAs(this, file);
-				return true;
-			},
-		});
-		const withSide = (file: TFile, fn: (s: Side) => void) =>
-			this.sides().size ? new SidePickerModal(this, file, fn).open() : this.openSettings();
-		this.addCommand({
-			id: "new-linked-note",
-			name: "Create a new note linked to this note",
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveFile();
-				if (!file || file.extension !== "md") return false;
-				if (!checking) withSide(file, (s) => new NewLinkedNoteModal(this, file, s).open());
-				return true;
-			},
-		});
-		this.addCommand({
-			id: "link-several",
-			name: "Link several notes to this note",
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveFile();
-				if (!file || file.extension !== "md") return false;
-				if (!checking) withSide(file, (s) => new LinkManyModal(this, file, s).open());
-				return true;
-			},
-		});
-		this.registerEvent(
-			this.app.workspace.on("file-menu", (menu, file) => {
-				if (!(file instanceof TFile) || file.extension !== "md" || !this.sides().size) return;
-				menu.addItem((i) => i.setTitle("Create a linked note…").setIcon("file-plus").setSection("action").onClick(() => withSide(file, (s) => new NewLinkedNoteModal(this, file, s).open())));
-			})
-		);
-		this.registerEvent(
-			this.app.workspace.on("files-menu", (menu, files) => {
-				const notes = files.filter((f): f is TFile => f instanceof TFile && f.extension === "md");
-				if (notes.length < 2 || !this.sides().size) return;
-				menu.addItem((i) => i.setTitle(`Link ${notes.length} notes to a note…`).setIcon("link").setSection("action").onClick(() => linkSelected(this, notes)));
-			})
-		);
-		this.addCommand({ id: "show-connections", name: "Open the connections panel", callback: () => void this.activateView() });
-		this.addCommand({ id: "open-browser", name: "Open the relationship browser", callback: () => void this.openBrowser() });
-		this.addCommand({
-			id: "browse-note",
-			name: "Browse this note's relationships",
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveFile();
-				if (!file || file.extension !== "md") return false;
-				if (!checking) void this.openBrowser(file.path);
-				return true;
-			},
-		});
-		this.addCommand({
-			id: "show-paths",
-			name: "How is this note connected to another note?",
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveFile();
-				if (!file || file.extension !== "md" || !this.sides().size) return false;
-				if (!checking) showPaths(this, file);
-				return true;
-			},
-		});
-		this.addCommand({
-			id: "insert-base",
-			name: "Insert a table of notes linked to this note",
-			editorCheckCallback: (checking, editor, ctx) => {
-				const file = ctx.file;
-				// Bases arrived in Obsidian 1.9.
-				if (!file || !this.sides().size || !requireApiVersion("1.9.0")) return false;
-				if (!checking) {
-					new SidePickerModal(this, file, (side) => editor.replaceSelection(baseBlock(side)), "Choose which related notes to list").open();
-				}
-				return true;
-			},
-		});
-		this.addCommand({
-			id: "copy-base",
-			name: "Copy a table of notes linked to this note",
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveFile();
-				if (!file || file.extension !== "md" || !this.sides().size || !requireApiVersion("1.9.0")) return false;
-				if (!checking) {
-					new SidePickerModal(this, file, (side) => {
-						void navigator.clipboard.writeText(baseBlock(side)).then(
-							() => new Notice(`Copied a table of ${side.prop}. Paste it into any note.`),
-							() => new Notice("Relate could not reach the clipboard.")
-						);
-					}, "Choose which related notes to list").open();
-				}
-				return true;
-			},
-		});
-		this.addCommand({ id: "whats-new", name: "Show what's new", callback: () => this.showWhatsNew() });
-		this.addCommand({ id: "find-relationships", name: "Find links in your vault", callback: () => new AdoptModal(this).open() });
-		this.addCommand({ id: "check-links", name: "Check links", callback: () => new HealthModal(this).open() });
-		this.addCommand({ id: "search-by-meaning", name: "Turn on search by meaning", callback: () => this.turnOnMeaning() });
-		this.addCommand({
-			id: "rebuild-meaning-index",
-			name: "Rebuild the meaning index",
-			checkCallback: (checking) => {
-				if (!this.settings.semantic.enabled) return false;
-				if (!checking) void this.semantic.rebuild();
-				return true;
-			},
-		});
+		registerCommands(this);
 
 		// obsidian://relate?search=… opens search with a query; obsidian://relate?browse=… opens the browser on a note.
 		this.registerObsidianProtocolHandler("relate", (params) => {
@@ -261,19 +109,6 @@ export default class RelatePlugin extends Plugin {
 			this.showStatus();
 			this.refreshViews();
 		});
-		this.addCommand({
-			id: "undo",
-			name: "Undo the last change",
-			callback: async () => {
-				const last = this.history.latest();
-				if (!last) {
-					new Notice("Relate has no change to undo.");
-					return;
-				}
-				await this.history.undo(last.id);
-			},
-		});
-
 		// Other plugins find the API through public workspace events: Relate announces it when ready, answers a
 		// request from a plugin that loaded later, and says when it leaves.
 		const bus: Events = this.app.workspace;
@@ -415,79 +250,16 @@ export default class RelatePlugin extends Plugin {
 		return [];
 	}
 
-	/** Notes related to `path` through `prop`, whichever note records the link. */
-	related(path: string, prop: string, all: boolean): Set<string> {
-		return this.relatedDetail(path, prop, all).paths;
-	}
-
-	/**
-	 * Notes related to `path` through `prop`. With `all`, follows chains only when the relationship allows it,
-	 * and says whether it followed them and whether it stopped at the depth limit.
-	 */
-	relatedDetail(path: string, prop: string, all: boolean): { paths: Set<string>; followed: boolean; truncated: boolean } {
-		const side = this.sides().get(prop);
-		const step = (p: string) => {
-			const out = new Set(this.index.targets(p, prop));
-			if (side) for (const q of this.index.incoming(p, side.inverse)) out.add(q);
-			out.delete(p);
-			return out;
-		};
-		const follow = all && !!side?.chains;
-		const r = traverse(path, step, follow, MAX_CHAIN_DEPTH);
-		return { paths: r.paths, followed: follow, truncated: r.truncated };
-	}
-
-	/** Every note linked to `path` through any relationship. */
-	connected(path: string): Set<string> {
-		const out = new Set<string>();
-		for (const side of this.sides().values()) {
-			for (const p of this.index.targets(path, side.prop)) out.add(p);
-			for (const p of this.index.incoming(path, side.prop)) out.add(p);
-		}
-		out.delete(path);
-		return out;
-	}
-
-	// ----------------------------------------------------------------- releases
-
-	/** Releases the Connections panel announces, newest first; empty once read or dismissed. */
-	releaseNotes: ReleaseNote[] = [];
-
-	/** The newest release seen: the later of the synced and this device's marker. */
-	private seenVersion(): string {
-		const local: unknown = this.app.loadLocalStorage(RELEASE_KEY);
-		return laterVersion(this.settings.lastShownVersion, typeof local === "string" ? local : "");
-	}
-
-	private markReleaseSeen(): void {
-		const current = this.manifest.version;
-		const local: unknown = this.app.loadLocalStorage(RELEASE_KEY);
-		this.app.saveLocalStorage(RELEASE_KEY, laterVersion(typeof local === "string" ? local : "", current));
-		const synced = laterVersion(this.settings.lastShownVersion, current);
-		if (synced === this.settings.lastShownVersion) return;
-		this.settings.lastShownVersion = synced;
-		void this.saveSettings();
-	}
-
-	/** At load: a new install is welcomed instead; an update queues its notes, unless announcements are off. */
-	private reviewRelease(firstRun: boolean): void {
-		const notes = firstRun || !this.settings.showReleaseNotes ? [] : unseenNotes(this.manifest.version, this.seenVersion());
-		if (notes.length) this.releaseNotes = notes;
-		else this.markReleaseSeen();
-	}
-
 	/** Opens the unseen notes, which closing marks read, or else the latest releases. */
 	showWhatsNew(): void {
-		const unseen = this.releaseNotes.length > 0;
-		const notes = unseen ? this.releaseNotes : recentNotes(this.manifest.version);
+		const unseen = this.releases.notes.length > 0;
+		const notes = unseen ? this.releases.notes : recentNotes(this.manifest.version);
 		new WhatsNewModal(this, notes, unseen ? () => this.dismissReleaseNotes() : undefined).open();
 	}
 
+	/** Marks the announced release notes read and takes the notice away. */
 	dismissReleaseNotes(): void {
-		if (!this.releaseNotes.length) return;
-		this.releaseNotes = [];
-		this.markReleaseSeen();
-		this.refreshViews();
+		if (this.releases.dismiss()) this.refreshViews();
 	}
 
 	/**
@@ -513,27 +285,6 @@ export default class RelatePlugin extends Plugin {
 			});
 			this.registerEvent(ref);
 		});
-	}
-
-	/** Validated link changes for other plugins and scripts. */
-	private async apiChange(from: string, property: string, to: string, add: boolean): Promise<{ ok: boolean; reason?: string }> {
-		const side = this.sides().get(property);
-		if (!side) return { ok: false, reason: `${property} is not a relationship Relate manages.` };
-		const a = this.app.vault.getAbstractFileByPath(from);
-		if (!(a instanceof TFile) || a.extension !== "md") return { ok: false, reason: `${from} is not a note.` };
-		const b = this.app.vault.getAbstractFileByPath(to);
-		if (a.path === to) return { ok: false, reason: "A note cannot be linked to itself." };
-		let out;
-		if (add) {
-			if (!(b instanceof TFile) || b.extension !== "md") return { ok: false, reason: `${to} is not a note.` };
-			out = await this.sync.connect(a, side, b);
-		} else {
-			out = await this.sync.disconnect(a, side, to);
-		}
-		if (out.error) return { ok: false, reason: out.error };
-		if (!out.applied.length) return { ok: false, reason: out.skipped[0] ?? "Nothing changed." };
-		this.refreshViews();
-		return { ok: true };
 	}
 
 	async connect(file: TFile, side: Side, target: TFile): Promise<void> {

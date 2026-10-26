@@ -1,10 +1,10 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import { FakeApp, network } from "./fake-obsidian";
-import { SemanticIndex } from "../src/semantic/index";
+import { SemanticIndex, type SemanticHost } from "../src/semantic/index";
 import { Consent } from "../src/semantic/consent";
 import { DEFAULT_SETTINGS, type RelateSettings } from "../src/settings";
-import type RelatePlugin from "../src/main";
+import type { App } from "obsidian";
 
 function setup(semantic: Partial<RelateSettings["semantic"]>) {
 	const app = new FakeApp();
@@ -12,10 +12,10 @@ function setup(semantic: Partial<RelateSettings["semantic"]>) {
 	app.add("B.md");
 	const settings: RelateSettings = { ...DEFAULT_SETTINGS, semantic: { ...DEFAULT_SETTINGS.semantic, enabled: true, ...semantic } };
 	const errors: string[] = [];
-	const host = { app, settings, reportError: (where: string, e: unknown) => (errors.push(`${where}: ${String(e)}`), String(e)) };
+	// The fake stands in for the slice of Obsidian's App that the index uses.
+	const host: SemanticHost = { app: app as unknown as App, settings, reportError: (where, e) => (errors.push(`${where}: ${String(e)}`), String(e)) };
 	const consent = new Consent({ load: (k) => app.loadLocalStorage(k), save: (k, v) => app.saveLocalStorage(k, v) }, "model@1");
-	// The fake stands in for the slice of the plugin the index reads.
-	const index = new SemanticIndex(host as unknown as RelatePlugin, consent);
+	const index = new SemanticIndex(host, consent);
 	return { app, index, consent, errors };
 }
 
