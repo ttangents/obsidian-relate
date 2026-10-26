@@ -46,7 +46,20 @@ export class SemanticIndex {
 	private listeners = new Set<() => void>();
 	private run = 0;
 
-	constructor(private plugin: SemanticHost, private consent: Consent) {}
+	/**
+	 * `open` opens this vault's store on this device; tests pass their own. When it fails, the index falls back to a
+	 * store in memory.
+	 */
+	constructor(
+		private plugin: SemanticHost,
+		private consent: Consent,
+		private open: (name: string) => Promise<VectorStore> = (name) => IdbStore.open(name)
+	) {}
+
+	/** False when this device's browser storage failed to open, so the model cannot be kept between sessions. */
+	get persistent(): boolean {
+		return this.store?.persistent ?? true;
+	}
 
 	get ready(): boolean {
 		return this.status.state === "ready" || (this.status.state === "indexing" && this.vectors.size > 0);
@@ -79,7 +92,7 @@ export class SemanticIndex {
 			this.app.saveLocalStorage(STORE_KEY, id);
 		}
 		try {
-			this.store = await IdbStore.open(`relate-${String(id)}`);
+			this.store = await this.open(`relate-${String(id)}`);
 		} catch (e) {
 			this.plugin.reportError("Opening the meaning index", e);
 			this.store = new MemoryStore();
@@ -103,6 +116,11 @@ export class SemanticIndex {
 			if (s.source === "builtin") {
 				const packed = await store.getModel(BUILTIN.id);
 				if (!packed) {
+					if (!store.persistent) {
+						// The model would be gone when Obsidian closes, so each download needs its own yes.
+						this.set("needs-download", `This device's browser storage is not available, so Relate cannot keep the ${BUILTIN.name} model between sessions. Download it for this session only to use search by meaning.`);
+						return;
+					}
 					if (!this.consent.model) {
 						this.set("needs-download", `Search by meaning needs the ${BUILTIN.name} model on this device (${BUILTIN.sizeLabel}).`);
 						return;

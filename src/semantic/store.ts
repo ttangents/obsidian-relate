@@ -9,6 +9,8 @@ export interface StoredVector {
 
 /** Where the model and the note vectors live. On a device this is IndexedDB, outside the vault, so sync never copies it. */
 export interface VectorStore {
+	/** False when the store lives in memory only, so the model and vectors are gone when Obsidian closes. */
+	readonly persistent: boolean;
 	getModel(id: string): Promise<PackedModel | null>;
 	putModel(m: PackedModel): Promise<void>;
 	allVectors(): Promise<StoredVector[]>;
@@ -34,6 +36,8 @@ function done(tx: IDBTransaction): Promise<void> {
 }
 
 export class IdbStore implements VectorStore {
+	readonly persistent = true;
+
 	private constructor(private db: IDBDatabase) {}
 
 	static async open(name: string): Promise<IdbStore> {
@@ -92,6 +96,7 @@ export class IdbStore implements VectorStore {
 
 /** In-memory store for tests and for devices where IndexedDB is unavailable. */
 export class MemoryStore implements VectorStore {
+	readonly persistent = false;
 	models = new Map<string, PackedModel>();
 	vectors = new Map<string, StoredVector>();
 	async getModel(id: string) {

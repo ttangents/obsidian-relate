@@ -320,7 +320,7 @@ export class RelateSettingTab extends PluginSettingTab {
 			case "off":
 				return "Off.";
 			case "needs-download":
-				return s.message.startsWith("The model download failed") ? s.message : "On, but this device does not have the model yet.";
+				return s.message.startsWith("The model download failed") || !sem.persistent ? s.message : "On, but this device does not have the model yet.";
 			case "indexing":
 				return `Indexing notes on this device: ${s.done} of ${s.total}.`;
 			case "ready":
