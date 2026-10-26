@@ -77,6 +77,8 @@ export class ChangeSignal {
 
 /** What the API reads and changes. The composition root supplies each part. */
 export interface ApiDeps {
+	/** False once Relate starts to unload. The API is inert from then on. */
+	live(): boolean;
 	index: PathGraph;
 	sides(): Map<string, Side>;
 	relations(): Relation[];
@@ -96,9 +98,16 @@ function clamp(n: number | undefined, fallback: number, max: number): number {
 	return Math.max(1, Math.min(max, Math.floor(n ?? fallback) || fallback));
 }
 
-/** Builds the frozen API object every plugin receives. */
+/** What a change through the API returns once Relate has unloaded. */
+const GONE = { ok: false, reason: "Relate is not running." };
+
+/**
+ * Builds the frozen API every plugin receives. Once Relate unloads, the API is inert: read methods return empty
+ * results, `meaningReady` returns false, and `connect` and `disconnect` change nothing and say why.
+ */
 export function createApi(d: ApiDeps): RelateApi {
 	const change = async (from: string, property: string, to: string, add: boolean): Promise<{ ok: boolean; reason?: string }> => {
+		if (!d.live()) return { ...GONE };
 		const side = d.sides().get(property);
 		if (!side) return { ok: false, reason: `${property} is not a relationship Relate manages.` };
 		const a = d.note(from);
@@ -119,18 +128,19 @@ export function createApi(d: ApiDeps): RelateApi {
 	};
 	const api: RelateApi = {
 		version: 1,
-		related: (path, prop, all = false) => [...d.queries.related(path, prop, all)],
+		related: (path, prop, all = false) => (d.live() ? [...d.queries.related(path, prop, all)] : []),
 		search: async (q) =>
-			(await d.search(String(q))).map((r) => ({
+			!d.live() ? [] : (await d.search(String(q))).map((r) => ({
 				path: r.file.path,
 				reasons: [...r.reasons],
 				paths: r.paths.map((p) => p.map((s) => ({ ...s }))),
 			})),
-		connections: (path) => d.queries.connections(path).map((s) => ({ prop: s.prop, path: s.to })),
-		meaningReady: () => d.semantic.ready,
-		relationships: () => d.relations().map((r) => ({ property: r.property, inverse: r.inverse })),
-		similar: (path, limit) => d.semantic.similar(path, clamp(limit, 5, 50)),
+		connections: (path) => (d.live() ? d.queries.connections(path).map((s) => ({ prop: s.prop, path: s.to })) : []),
+		meaningReady: () => d.live() && d.semantic.ready,
+		relationships: () => (d.live() ? d.relations().map((r) => ({ property: r.property, inverse: r.inverse })) : []),
+		similar: (path, limit) => (d.live() ? d.semantic.similar(path, clamp(limit, 5, 50)) : []),
 		paths: (from, to, opts = {}) => {
+			if (!d.live()) return [];
 			const sides = d.sides();
 			const side = opts.property ? sides.get(opts.property) : undefined;
 			if (opts.property && !side) return [];

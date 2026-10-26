@@ -136,6 +136,8 @@ bus.trigger("relate:request"); // Relate answers with relate:ready if it loaded 
 - `paths(from, to, { property?, maxSteps?, limit?, skipBusy? })`: short chains of links between two notes, as `{ from, prop, to }` steps.
 - `connect(from, property, to)` and `disconnect(from, property, to)`: change a link on both notes, with the same checks as the Connections panel. Each resolves to `{ ok, reason? }`.
 
+The API object is frozen. When Relate unloads, it sends `relate:unload` first, and the API it handed out turns inert: read methods return empty results, `meaningReady()` returns false, and `connect` and `disconnect` change nothing and resolve to `{ ok: false, reason }`.
+
 ## Development
 
 ```sh

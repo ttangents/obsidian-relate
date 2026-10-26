@@ -81,6 +81,7 @@ export default class RelatePlugin extends Plugin {
 		this.register(this.index.onChange(() => this.changes.poke()));
 		this.register(this.semantic.onChange(() => this.changes.poke()));
 		this.api = createApi({
+			live: () => !this.unloading,
 			index: this.index,
 			sides: () => this.sides(),
 			relations: () => this.settings.relations,
