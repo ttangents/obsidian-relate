@@ -24,7 +24,6 @@ export class WelcomeModal extends Modal {
 		p("Relate keeps links between notes in step. When one note lists another in a property, such as a project listing its notes, Relate adds the link back on the other note.");
 		p("The links are ordinary properties, so the Properties panel, Bases, the graph and backlinks all show them. If you ever remove Relate, every link stays where it is.");
 		p("To start, Relate can look for properties in your vault that already link notes, or you can pick a common setup, such as projects and their notes.");
-		companionLine(contentEl.createEl("p", { cls: "relate-modal-text relate-muted" }), "You don't need it to use Relate.");
 		const footer = contentEl.createDiv({ cls: "modal-button-container" });
 		footer.createEl("button", { text: "Not now" }).addEventListener("click", () => this.close());
 		const start = footer.createEl("button", { cls: "mod-cta", text: "Find links in your vault" });
