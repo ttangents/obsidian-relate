@@ -116,7 +116,7 @@ Relate lists every note in the vault to keep its index of links, and reads notes
 
 ## For other plugins
 
-Other plugins reach Relate through public workspace events, never through its plugin instance:
+Other plugins reach Relate through public workspace events, never through its plugin instance. The full contract, with its guarantees, behaviour after unload and known users, is `API.md` in Relate's design documents (Les's Vibes vault, `Obsidian plugins/Relate/API.md`); this section is its summary.
 
 ```ts
 const bus: Events = app.workspace;
