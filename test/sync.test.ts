@@ -167,6 +167,46 @@ test("renaming with stale links does not drain the renamed note", async () => {
 
 // ---------------------------------------------------------------- review findings
 
+test("[review 3] undo right after a large batch removes every link, even while the cache lags", async () => {
+	const project: Relation = { property: "project", inverse: "notes", propertyOne: false, inverseOne: false, chains: false };
+	const names = Array.from({ length: 40 }, (_, i) => `N${i}.md`);
+	const notesFm: Record<string, Record<string, unknown>> = { "Paper.md": {} };
+	for (const n of names) notesFm[n] = {};
+	const { app, plugin, settings, history } = setup([project], notesFm);
+	app.cacheLag = 200;
+	const notes = side(plugin, "notes");
+	await plugin.sync.connectMany(names.map((n) => ({ file: f(app, "Paper.md"), side: notes, target: f(app, n) })), "Linked 40 notes to Paper");
+	// Undo at once, before Obsidian has re-read the notes Relate just wrote.
+	await history.undo(settings.history.at(-1)!.id);
+	await app.settle();
+	assert.equal(app.fm.get("Paper.md")!.notes, undefined);
+	for (const n of names) assert.equal(app.fm.get(n)!.project, undefined, n);
+	assert.equal(settings.history.at(-2)!.undoable, false);
+});
+
+test("[review 3] a link removed and quickly added again is mirrored again, even while the cache lags", async () => {
+	const { app } = setup([related], { "A.md": { related: ["[[B]]"] }, "B.md": { related: ["[[A]]"] } });
+	app.lag.set("B.md", 400);
+	await app.edit("A.md", (fm) => delete fm.related);
+	for (let i = 0; i < 100 && app.fm.get("B.md")!.related !== undefined; i++) await new Promise((r) => setTimeout(r, 2));
+	assert.equal(app.fm.get("B.md")!.related, undefined, "Relate removed the back-link");
+	// The user puts the link back before Obsidian has re-read B.
+	await app.edit("A.md", (fm) => (fm.related = ["[[B]]"]));
+	await app.settle();
+	assert.deepEqual(app.fm.get("B.md")!.related, ["[[A]]"]);
+});
+
+test("[review 14] a back-link that is already in the file is never written twice, even while the cache lags", async () => {
+	const { app, plugin } = setup([related], { "A.md": {}, "B.md": {} });
+	app.cacheLag = 100;
+	await plugin.sync.connect(f(app, "A.md"), side(plugin, "related"), f(app, "B.md"));
+	// Another device's identical write arrives before Obsidian re-reads B.
+	await plugin.sync.connect(f(app, "A.md"), side(plugin, "related"), f(app, "B.md"));
+	await app.settle();
+	assert.deepEqual(app.fm.get("A.md")!.related, ["[[B]]"]);
+	assert.deepEqual(app.fm.get("B.md")!.related, ["[[A]]"]);
+});
+
 test("[review 2] a mirrored move can be undone, and undo puts all three notes back", async () => {
 	const { app, settings, history, notices } = setup([family], { "A.md": { children: ["[[B]]"] }, "B.md": { parent: "[[A]]" }, "C.md": {} });
 	await app.edit("C.md", (fm) => (fm.children = ["[[B]]"]));

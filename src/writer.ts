@@ -16,6 +16,11 @@ export interface AddOptions {
 	replace?: boolean;
 	/** Exact text to write, e.g. "[[Note|Alias]]" when undo restores a value. */
 	text?: string;
+	/**
+	 * False when Obsidian's cache of the note may be stale, because Relate wrote the note and Obsidian has not
+	 * re-read it yet. The writer then decides from the file itself instead of the cache. Defaults to true.
+	 */
+	fresh?: boolean;
 }
 
 /** Writes and removes links in note properties through Obsidian's own frontmatter API. Never touches the note body. */
@@ -41,8 +46,8 @@ export class Writer {
 	async addLink(file: TFile, prop: string, target: TFile, one: boolean, opts: AddOptions = {}): Promise<AddResult> {
 		const result: AddResult = { changed: false, replaced: null, replacedText: null, blocked: false };
 		if (file.extension !== "md" || target.extension !== "md") return result;
-		// Skip the write entirely when the cache already shows the link.
-		if (this.cached(file, prop).some((v) => this.resolve(v, file.path) === target.path)) return result;
+		// Skip the write entirely when an up-to-date cache already shows the link.
+		if ((opts.fresh ?? true) && this.cached(file, prop).some((v) => this.resolve(v, file.path) === target.path)) return result;
 		const replace = opts.replace ?? true;
 		const text = opts.text ?? this.linkText(target, file);
 
@@ -73,10 +78,14 @@ export class Writer {
 		return result;
 	}
 
-	/** Removes links to `targetPath` and returns the exact text removed, or null when nothing changed. */
-	async removeLink(file: TFile, prop: string, targetPath: string): Promise<string | null> {
+	/**
+	 * Removes links to `targetPath` and returns the exact text removed, or null when nothing changed. With `fresh`
+	 * false, as for `addLink`, the decision comes from the file itself instead of a cache that may be stale.
+	 */
+	async removeLink(file: TFile, prop: string, targetPath: string, fresh = true): Promise<string | null> {
 		if (file.extension !== "md") return null;
-		if (!this.cached(file, prop).some((v) => this.resolve(v, file.path) === targetPath)) return null;
+		// Skip the write entirely when an up-to-date cache shows nothing to remove.
+		if (fresh && !this.cached(file, prop).some((v) => this.resolve(v, file.path) === targetPath)) return null;
 		let removed: string | null = null;
 		await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
 			const current = fm[prop];

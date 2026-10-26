@@ -74,7 +74,10 @@ export class SyncEngine {
 	private timers = new Map<string, number>();
 	private attempts = new Map<string, number>();
 	private snapshot = new Map<string, Edges>();
-	/** Notes Relate wrote whose change Obsidian has not reported yet. Their cache is stale until it does. */
+	/**
+	 * Notes Relate wrote whose change Obsidian has not reported yet. Their cache is stale until it does, so writes
+	 * to them decide from the file itself.
+	 */
 	private inflight = new Map<string, { count: number; since: number }>();
 	private startTimer: number | null = null;
 	private healthCache: { key: string; value: Health } | null = null;
@@ -243,7 +246,7 @@ export class SyncEngine {
 	/** Adds one link, journals it, and records it in the note's snapshot as Relate's own change. */
 	private async addOne(j: Journal, file: TFile, prop: string, target: TFile, one: boolean, opts: AddOptions = {}): Promise<AddResult> {
 		this.check();
-		const r = await this.plugin.writer.addLink(file, prop, target, one, opts);
+		const r = await this.plugin.writer.addLink(file, prop, target, one, { ...opts, fresh: !this.inflight.has(file.path) });
 		if (!r.changed) return r;
 		this.wrote(file.path);
 		if (r.replaced) {
@@ -257,7 +260,7 @@ export class SyncEngine {
 
 	private async removeOne(j: Journal, file: TFile, prop: string, targetPath: string): Promise<boolean> {
 		this.check();
-		const text = await this.plugin.writer.removeLink(file, prop, targetPath);
+		const text = await this.plugin.writer.removeLink(file, prop, targetPath, !this.inflight.has(file.path));
 		if (text === null) return false;
 		this.wrote(file.path);
 		j.ops.push({ path: file.path, prop, target: targetPath, action: "remove", text });
