@@ -3,4 +3,6 @@ main.js
 dist/
 *.log
 .DS_Store
-playground/
+# Pointers to the design documents in Les's Vibes vault; they stay on this machine.
+CLAUDE.md
+AGENTS.md
