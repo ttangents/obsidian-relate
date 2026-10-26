@@ -414,7 +414,8 @@ export default class RelatePlugin extends Plugin {
 			this.settings.semantic.enabled = true;
 			await this.saveSettings();
 		};
-		const plan = meaningPlan(this.settings.semantic, this.consent);
+		const temporary = !this.semantic.persistent && this.semantic.status.state === "needs-download";
+		const plan = meaningPlan(this.settings.semantic, this.consent, temporary);
 		if (plan.kind === "start" || plan.kind === "needs-address") {
 			// Without an address, starting shows what is missing in the status line and in settings.
 			void enable().then(() => this.semantic.start());
@@ -446,7 +447,8 @@ export default class RelatePlugin extends Plugin {
 				}
 				await this.semantic.start();
 			},
-			onCancel
+			onCancel,
+			temporary
 		).open();
 	}
 

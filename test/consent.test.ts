@@ -39,3 +39,9 @@ test("[review 4] the built-in model needs agreement once per device, and forgett
 test("[review 4] a server without an address or model cannot start", () => {
 	assert.deepEqual(meaningPlan({ ...server(""), serverModel: "" }, device()), { kind: "needs-address" });
 });
+
+test("[review 7] a device that cannot keep the model asks before every download", () => {
+	const consent = device();
+	consent.allowModel();
+	assert.deepEqual(meaningPlan({ ...DEFAULT_SEMANTIC, enabled: true }, consent, true), { kind: "ask-model" });
+});

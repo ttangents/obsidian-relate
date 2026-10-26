@@ -51,12 +51,15 @@ export type MeaningPlan =
 	| { kind: "ask-server"; url: string }
 	| { kind: "needs-address" };
 
-/** Decides whether turning on search by meaning can start now or must first ask this device's user. */
-export function meaningPlan(s: SemanticSettings, consent: Consent): MeaningPlan {
+/**
+ * Decides whether turning on search by meaning can start now or must first ask this device's user. With
+ * `askEachDownload`, as when the device cannot keep the model, the built-in model needs a yes every time.
+ */
+export function meaningPlan(s: SemanticSettings, consent: Consent, askEachDownload = false): MeaningPlan {
 	if (s.source === "server") {
 		const url = s.serverUrl.trim();
 		if (!url || !s.serverModel.trim()) return { kind: "needs-address" };
 		return consent.server(url) ? { kind: "start" } : { kind: "ask-server", url };
 	}
-	return consent.model ? { kind: "start" } : { kind: "ask-model" };
+	return consent.model && !askEachDownload ? { kind: "start" } : { kind: "ask-model" };
 }

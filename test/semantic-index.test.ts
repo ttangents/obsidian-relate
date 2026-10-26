@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { FakeApp, network } from "./fake-obsidian";
 import { SemanticIndex, type SemanticHost } from "../src/semantic/index";
 import { Consent } from "../src/semantic/consent";
+import { MemoryStore, type VectorStore } from "../src/semantic/store";
 import { DEFAULT_SETTINGS, type RelateSettings } from "../src/settings";
 import type { App } from "obsidian";
 
-function setup(semantic: Partial<RelateSettings["semantic"]>) {
+function setup(semantic: Partial<RelateSettings["semantic"]>, store: VectorStore = new MemoryStore()) {
 	const app = new FakeApp();
 	app.add("A.md");
 	app.add("B.md");
@@ -15,7 +16,7 @@ function setup(semantic: Partial<RelateSettings["semantic"]>) {
 	// The fake stands in for the slice of Obsidian's App that the index uses.
 	const host: SemanticHost = { app: app as unknown as App, settings, reportError: (where, e) => (errors.push(`${where}: ${String(e)}`), String(e)) };
 	const consent = new Consent({ load: (k) => app.loadLocalStorage(k), save: (k, v) => app.saveLocalStorage(k, v) }, "model@1");
-	const index = new SemanticIndex(host, consent);
+	const index = new SemanticIndex(host, consent, async () => store);
 	return { app, index, consent, errors };
 }
 
@@ -41,4 +42,17 @@ test("[review 4] once this device agrees to the address, notes go there and nowh
 	assert.ok(network.requests.every((r) => r.url === "http://box:11434/v1/embeddings"));
 	index.stop();
 	network.reply = null;
+});
+
+test("[review 7] without lasting storage, a device that agreed once is asked again before each download", async () => {
+	network.requests.length = 0;
+	network.reply = null;
+	const { index, consent } = setup({ source: "builtin" });
+	consent.allowModel();
+	await index.start();
+	assert.equal(index.persistent, false);
+	assert.equal(index.status.state, "needs-download");
+	assert.match(index.status.message, /cannot keep/);
+	assert.equal(network.requests.length, 0, "nothing downloads without a new yes");
+	index.stop();
 });
