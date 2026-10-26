@@ -21,7 +21,7 @@ import { SettingsStore } from "./settings-store";
 import { History, type PluginFiles } from "./history";
 import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
-import { EVENT_CHANGED, EVENT_READY, EVENT_REQUEST, EVENT_UNLOAD, createApi, type RelateApi } from "./api";
+import { ChangeSignal, EVENT_CHANGED, EVENT_READY, EVENT_REQUEST, EVENT_UNLOAD, createApi, type RelateApi } from "./api";
 
 export type { RelateApi } from "./api";
 
@@ -50,6 +50,7 @@ export default class RelatePlugin extends Plugin {
 	private sidesCache: Map<string, Side> | null = null;
 	private settingTab!: RelateSettingTab;
 	private refreshTimer: number | null = null;
+	private changes!: ChangeSignal;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -71,6 +72,13 @@ export default class RelatePlugin extends Plugin {
 		this.search = new SearchService(this);
 		this.consent = new Consent(storage, BUILTIN.id);
 		this.semantic = new SemanticIndex(this, this.consent);
+		// The link index and the meaning index announce their own changes to other plugins, whatever caused them.
+		this.changes = new ChangeSignal(
+			() => this.app.workspace.trigger(EVENT_CHANGED),
+			() => `${this.index.revision}:${this.semantic.revision}`
+		);
+		this.register(this.index.onChange(() => this.changes.poke()));
+		this.register(this.semantic.onChange(() => this.changes.poke()));
 		this.api = createApi({
 			index: this.index,
 			sides: () => this.sides(),
@@ -183,6 +191,7 @@ export default class RelatePlugin extends Plugin {
 		this.sync?.stop();
 		this.semantic?.stop();
 		this.search?.stop();
+		this.changes?.stop();
 		void this.history?.flush();
 		for (const finish of [...this.waits]) finish();
 		if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
@@ -343,19 +352,9 @@ export default class RelatePlugin extends Plugin {
 		return out;
 	}
 
-	private announced = "";
-
 	/** Hands the API to any plugin listening for it. */
 	private announce(): void {
 		if (!this.unloading) this.app.workspace.trigger(EVENT_READY, this.api);
-	}
-
-	/** Tells listeners that links or the meaning index changed, once per change. */
-	private announceChange(): void {
-		const now = `${this.index.revision}:${this.semantic.status.state}:${this.semantic.count}`;
-		if (now === this.announced) return;
-		this.announced = now;
-		this.app.workspace.trigger(EVENT_CHANGED);
 	}
 
 	refreshViews(): void {
@@ -363,7 +362,6 @@ export default class RelatePlugin extends Plugin {
 		if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer);
 		this.refreshTimer = window.setTimeout(() => {
 			this.refreshTimer = null;
-			this.announceChange();
 			for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
 				if (leaf.view instanceof ConnectionsView) leaf.view.render();
 			}

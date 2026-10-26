@@ -1,9 +1,8 @@
 import type { TFile } from "obsidian";
-import { findPaths, type PathGraph, type Step } from "./paths";
+import { BUSY_NOTE, findPaths, type PathGraph, type Step } from "./paths";
 import type { RelationQueries } from "./queries";
 import type { Relation, Side } from "./settings";
 import type { Outcome } from "./sync";
-import { BUSY_NOTE } from "./ui/paths-modal";
 
 /**
  * The contract other plugins use. Read it from the `relate:ready` workspace event, never from Relate's plugin
@@ -42,6 +41,39 @@ export const EVENT_REQUEST = "relate:request";
 export const EVENT_CHANGED = "relate:changed";
 /** Relate sends this first thing when it unloads; the API is inert from then on. */
 export const EVENT_UNLOAD = "relate:unload";
+
+/**
+ * Sends `relate:changed` once a burst of changes settles, and only when the links or the meaning index really
+ * changed, so a listener that clears a cache does so once per change.
+ */
+export class ChangeSignal {
+	private timer: number | null = null;
+	private last = "";
+	private stopped = false;
+
+	/** `state` describes what listeners can see, such as the two indexes' revisions. */
+	constructor(private send: () => void, private state: () => string, private delay = 150) {}
+
+	/** Notes that something may have changed. */
+	poke(): void {
+		if (this.stopped) return;
+		if (this.timer !== null) window.clearTimeout(this.timer);
+		this.timer = window.setTimeout(() => {
+			this.timer = null;
+			const now = this.state();
+			if (now === this.last) return;
+			this.last = now;
+			this.send();
+		}, this.delay);
+	}
+
+	/** Stops sending, for unload. */
+	stop(): void {
+		this.stopped = true;
+		if (this.timer !== null) window.clearTimeout(this.timer);
+		this.timer = null;
+	}
+}
 
 /** What the API reads and changes. The composition root supplies each part. */
 export interface ApiDeps {
@@ -97,7 +129,7 @@ export function createApi(d: ApiDeps): RelateApi {
 		connections: (path) => d.queries.connections(path).map((s) => ({ prop: s.prop, path: s.to })),
 		meaningReady: () => d.semantic.ready,
 		relationships: () => d.relations().map((r) => ({ property: r.property, inverse: r.inverse })),
-		similar: (path, limit = 5) => d.semantic.similar(path, limit),
+		similar: (path, limit) => d.semantic.similar(path, clamp(limit, 5, 50)),
 		paths: (from, to, opts = {}) => {
 			const sides = d.sides();
 			const side = opts.property ? sides.get(opts.property) : undefined;

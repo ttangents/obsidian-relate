@@ -32,8 +32,22 @@ export class EdgeIndex {
 	revision = 0;
 	private out = new Map<string, Edges>();
 	private incomingCache: Map<string, Map<string, Set<string>>> | null = null;
+	private listeners = new Set<() => void>();
 
 	constructor(private app: App, private props: () => Set<string>) {}
+
+	/** Calls `fn` whenever the links change. Returns a function that stops the calls. */
+	onChange(fn: () => void): () => void {
+		this.listeners.add(fn);
+		return () => this.listeners.delete(fn);
+	}
+
+	/** Moves the revision on and tells listeners. */
+	private changed(): void {
+		this.incomingCache = null;
+		this.revision++;
+		for (const fn of this.listeners) fn();
+	}
 
 	rebuild(): void {
 		this.out.clear();
@@ -44,8 +58,7 @@ export class EdgeIndex {
 				if (e.size) this.out.set(f.path, e);
 			}
 		}
-		this.incomingCache = null;
-		this.revision++;
+		this.changed();
 	}
 
 	/** Re-reads one note and reports which links appeared or disappeared since the last read. */
@@ -63,10 +76,7 @@ export class EdgeIndex {
 		}
 		if (after.size) this.out.set(file.path, after);
 		else this.out.delete(file.path);
-		if (diff.added.length || diff.removed.length) {
-			this.incomingCache = null;
-			this.revision++;
-		}
+		if (diff.added.length || diff.removed.length) this.changed();
 		return diff;
 	}
 
@@ -78,14 +88,12 @@ export class EdgeIndex {
 		}
 		// Links in other notes are re-read from their own change events. If Obsidian updated them, they
 		// point to the new path; if link updating is off, they no longer resolve. Either way the index follows the files.
-		this.incomingCache = null;
-		this.revision++;
+		this.changed();
 	}
 
 	delete(path: string): void {
 		this.out.delete(path);
-		this.incomingCache = null;
-		this.revision++;
+		this.changed();
 	}
 
 	/** Notes that `path` lists under `prop`. Read-only: the set belongs to the index. */
