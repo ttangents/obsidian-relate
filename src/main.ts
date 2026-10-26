@@ -19,6 +19,7 @@ import { ReleaseState } from "./release-state";
 import { WelcomeModal, WhatsNewModal } from "./ui/whats-new";
 import { SettingsStore } from "./settings-store";
 import { History, type PluginFiles } from "./history";
+import { ErrorLog } from "./errors";
 import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
 import { ChangeSignal, EVENT_CHANGED, EVENT_READY, EVENT_REQUEST, EVENT_UNLOAD, createApi, type RelateApi } from "./api";
@@ -175,13 +176,11 @@ export default class RelatePlugin extends Plugin {
 	/** True while Obsidian unloads the plugin, so panels closing then are not mistaken for the user closing them. */
 	unloading = false;
 
-	/** Records an error in the settings file and the console, and returns a plain message for the panel. */
+	private errors!: ErrorLog;
+
+	/** Records an error in the settings file and the console, at most once a minute per error, and returns a plain message. */
 	reportError(where: string, e: unknown): string {
-		const message = e instanceof Error ? `${e.message}\n${e.stack ?? ""}` : String(e);
-		console.error(`Relate (${where}):`, e);
-		this.settings.errors = [...(this.settings.errors ?? []), { time: Date.now(), where, message }].slice(-5);
-		void this.saveSettings();
-		return e instanceof Error ? e.message : String(e);
+		return this.errors.report(where, e);
 	}
 
 	onunload(): void {
@@ -231,9 +230,10 @@ export default class RelatePlugin extends Plugin {
 		});
 		await this.store.load();
 		this.settings = this.store.settings;
+		this.errors = new ErrorLog({ settings: this.settings, save: () => void this.saveSettings() });
 		const { problems } = this.store;
 		if (problems.length) {
-			this.settings.errors = [...this.settings.errors, { time: Date.now(), where: "Settings file", message: problems.join(" ") }].slice(-5);
+			this.errors.report("Settings file", problems.join(" "));
 			new Notice(`Relate found problems in its settings file and used safe values instead: ${problems[0]} A copy of the original goes to data.backup.json in Relate's plugin folder.`, 12000);
 		}
 	}

@@ -5,6 +5,7 @@ import { AdoptModal, HealthModal } from "./modals";
 import { RelationModal } from "./relation-modal";
 import { BUILTIN } from "../semantic/embedders";
 import { plural } from "../links";
+import { INSECURE_WARNING, insecureRemote } from "../semantic/consent";
 
 /** Settings that a plain control edits, by key. Nested ones use a dotted key. */
 const SCALARS = ["autoSync", "mirrorRemovals", "dateSource", "dateProperty", "showReleaseNotes"] as const;
@@ -283,7 +284,9 @@ export class RelateSettingTab extends PluginSettingTab {
 				},
 				{
 					name: "Server address",
-					desc: "Any server with an OpenAI-compatible embeddings endpoint. Relate sends the text of your notes to this address to index them.",
+					desc:
+						"Any server with an OpenAI-compatible embeddings endpoint. Relate sends the text of your notes to this address to index them." +
+						(insecureRemote(s.semantic.serverUrl) ? ` ${INSECURE_WARNING}` : ""),
 					visible: server,
 					control: { type: "text", key: "semantic.serverUrl", placeholder: "http://localhost:11434" },
 				},

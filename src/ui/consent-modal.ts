@@ -1,6 +1,7 @@
 import { Modal } from "obsidian";
 import type RelatePlugin from "../main";
 import { BUILTIN } from "../semantic/embedders";
+import { INSECURE_WARNING, insecureRemote } from "../semantic/consent";
 
 /** Asks before Relate downloads the language model to this device. */
 export class ConsentModal extends Modal {
@@ -65,6 +66,7 @@ export class ServerConsentModal extends Modal {
 		list.createEl("li", { text: "Relate sends note text to this address only, and only from this device. Each device asks for itself." });
 		list.createEl("li", { text: "If you change the address, Relate asks again before it sends anything." });
 		list.createEl("li", { text: "You can turn search by meaning off at any time in Relate's settings." });
+		if (insecureRemote(this.url)) contentEl.createDiv({ cls: "relate-modal-text relate-warning", text: INSECURE_WARNING });
 		const footer = contentEl.createDiv({ cls: "modal-button-container" });
 		footer.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
 		const yes = footer.createEl("button", { cls: "mod-cta", text: "Send notes to this server" });

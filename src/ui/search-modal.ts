@@ -11,6 +11,9 @@ function chipText(chip: Chip): string {
 	return chip.label;
 }
 
+/** How long search waits after the last keystroke before it sends a query to the user's server. */
+const SERVER_PAUSE_MS = 300;
+
 export class SearchModal extends SuggestModal<SearchResult> {
 	private chipsEl: HTMLElement;
 	private lastQuery = "";
@@ -134,6 +137,11 @@ export class SearchModal extends SuggestModal<SearchResult> {
 		if (!query.trim()) {
 			this.results = [];
 			return [];
+		}
+		// A server embeds each query it receives, so wait until typing pauses before asking it.
+		if (parsed.text && this.plugin.semantic.ready && this.plugin.settings.semantic.source === "server") {
+			await new Promise((r) => window.setTimeout(r, SERVER_PAUSE_MS));
+			if (query !== this.lastQuery) return [];
 		}
 		const results = await this.plugin.search.run(parsed);
 		// Drop stale answers when the user kept typing.

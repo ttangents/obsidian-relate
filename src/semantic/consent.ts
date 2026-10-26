@@ -63,3 +63,19 @@ export function meaningPlan(s: SemanticSettings, consent: Consent, askEachDownlo
 	}
 	return consent.model && !askEachDownload ? { kind: "start" } : { kind: "ask-model" };
 }
+
+/** True for a plain `http` address on another machine, where a key and note text would travel unencrypted. */
+export function insecureRemote(url: string): boolean {
+	let parsed: URL;
+	try {
+		parsed = new URL(url.trim());
+	} catch {
+		return false;
+	}
+	if (parsed.protocol !== "http:") return false;
+	const host = parsed.hostname.replace(/^\[|\]$/g, "");
+	return !(host === "localhost" || host.endsWith(".localhost") || /^127\./.test(host) || host === "::1");
+}
+
+/** The warning Relate shows beside a plain `http` address on another machine. */
+export const INSECURE_WARNING = "This address uses plain http on another machine, so your notes, your searches and any key travel unencrypted. Use https, or a server on this device.";
