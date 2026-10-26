@@ -1,10 +1,15 @@
 import type { PackedModel } from "./static-model";
 
+/** One note's vector, with what identifies the text it came from. */
 export interface StoredVector {
 	path: string;
+	/** Fingerprint of the text the vector came from. */
 	hash: string;
 	model: string;
 	vec: Float32Array;
+	/** The note's modification time and size when it was read, so an unchanged note is not read again. */
+	mtime?: number;
+	size?: number;
 }
 
 /** Where the model and the note vectors live. On a device this is IndexedDB, outside the vault, so sync never copies it. */

@@ -18,6 +18,11 @@ export interface SemanticStatus {
 /** Names this vault's index database on this device. */
 const STORE_KEY = "relate-store-id";
 const BATCH = 24;
+
+/** A note's modification time and size, which change whenever its text does. */
+function stamp(stat: { mtime: number; size: number }): string {
+	return `${stat.mtime}:${stat.size}`;
+}
 const UPDATE_DELAY_MS = 2000;
 /** Similar notes must score at least this, measured on real vaults with the built-in model. */
 const SIMILAR_FLOOR = 0.45;
@@ -42,6 +47,8 @@ export class SemanticIndex {
 	private embedder: Embedder | null = null;
 	private vectors = new Map<string, Float32Array>();
 	private hashes = new Map<string, string>();
+	/** Each note's modification time and size when its text was last read. */
+	private stamps = new Map<string, string>();
 	private timers = new Map<string, number>();
 	private listeners = new Set<() => void>();
 	private run = 0;
@@ -106,6 +113,7 @@ export class SemanticIndex {
 		const myRun = ++this.run;
 		this.vectors.clear();
 		this.hashes.clear();
+		this.stamps.clear();
 		this.embedder = null;
 		if (!s.enabled) {
 			this.set("off");
@@ -158,6 +166,7 @@ export class SemanticIndex {
 				if (v.model !== this.embedder.id) continue;
 				this.vectors.set(v.path, v.vec);
 				this.hashes.set(v.path, v.hash);
+				if (v.mtime !== undefined && v.size !== undefined) this.stamps.set(v.path, stamp({ mtime: v.mtime, size: v.size }));
 			}
 			if (myRun !== this.run) return;
 			await this.indexAll(myRun);
@@ -204,15 +213,27 @@ export class SemanticIndex {
 		for (const p of gone) {
 			this.vectors.delete(p);
 			this.hashes.delete(p);
+			this.stamps.delete(p);
 		}
 		await store.deleteVectors(gone);
 
+		// Read only the notes whose modification time or size changed since their text was last read.
 		const todo: { file: TFile; text: string; hash: string }[] = [];
+		const restamped: StoredVector[] = [];
 		for (const f of files) {
+			if (this.hashes.has(f.path) && this.stamps.get(f.path) === stamp(f.stat)) continue;
 			const text = await this.noteText(f);
 			const hash = fingerprint(text);
-			if (this.hashes.get(f.path) !== hash) todo.push({ file: f, text, hash });
+			if (this.hashes.get(f.path) !== hash) {
+				todo.push({ file: f, text, hash });
+				continue;
+			}
+			// Same text, new stamp: remember the stamp, so the next start skips the note.
+			this.stamps.set(f.path, stamp(f.stat));
+			const vec = this.vectors.get(f.path);
+			if (vec) restamped.push({ path: f.path, hash, model: embedder.id, vec, mtime: f.stat.mtime, size: f.stat.size });
 		}
+		await store.putVectors(restamped);
 		if (!todo.length) {
 			this.set("ready");
 			return;
@@ -226,9 +247,10 @@ export class SemanticIndex {
 			batch.forEach((b, j) => {
 				const vec = vecs[j];
 				this.hashes.set(b.file.path, b.hash);
+				this.stamps.set(b.file.path, stamp(b.file.stat));
 				if (vec) {
 					this.vectors.set(b.file.path, vec);
-					rows.push({ path: b.file.path, hash: b.hash, model: embedder.id, vec });
+					rows.push({ path: b.file.path, hash: b.hash, model: embedder.id, vec, mtime: b.file.stat.mtime, size: b.file.stat.size });
 				} else {
 					this.vectors.delete(b.file.path);
 				}
@@ -252,14 +274,21 @@ export class SemanticIndex {
 				const embedder = this.embedder;
 				if (!embedder || !this.store) return;
 				try {
+					const store = this.store;
 					const text = await this.noteText(file);
 					const hash = fingerprint(text);
-					if (this.hashes.get(file.path) === hash) return;
+					const { mtime, size } = file.stat;
+					this.stamps.set(file.path, stamp(file.stat));
+					if (this.hashes.get(file.path) === hash) {
+						const vec = this.vectors.get(file.path);
+						if (vec) await store.putVectors([{ path: file.path, hash, model: embedder.id, vec, mtime, size }]);
+						return;
+					}
 					const [vec] = await embedder.embed([text]);
 					this.hashes.set(file.path, hash);
 					if (vec) {
 						this.vectors.set(file.path, vec);
-						await this.store.putVectors([{ path: file.path, hash, model: embedder.id, vec }]);
+						await store.putVectors([{ path: file.path, hash, model: embedder.id, vec, mtime, size }]);
 					}
 				} catch (e) {
 					this.plugin.reportError("Updating the meaning index", e);
@@ -273,6 +302,7 @@ export class SemanticIndex {
 		const hash = this.hashes.get(oldPath);
 		this.vectors.delete(oldPath);
 		this.hashes.delete(oldPath);
+		this.stamps.delete(oldPath);
 		if (!vec || !hash || !this.store || !this.embedder) return;
 		this.vectors.set(file.path, vec);
 		this.hashes.set(file.path, hash);
@@ -286,6 +316,7 @@ export class SemanticIndex {
 	onDelete(path: string): void {
 		this.vectors.delete(path);
 		this.hashes.delete(path);
+		this.stamps.delete(path);
 		void this.store?.deleteVectors([path]);
 	}
 
@@ -315,6 +346,7 @@ export class SemanticIndex {
 		this.run++;
 		this.vectors.clear();
 		this.hashes.clear();
+		this.stamps.clear();
 		this.embedder = null;
 		await (await this.openStore()).clear();
 		this.consent.forgetModel();

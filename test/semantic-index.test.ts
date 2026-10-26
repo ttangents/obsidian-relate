@@ -56,3 +56,30 @@ test("[review 7] without lasting storage, a device that agreed once is asked aga
 	assert.equal(network.requests.length, 0, "nothing downloads without a new yes");
 	index.stop();
 });
+
+test("[review 8] a restart reads only the notes whose modification time or size changed", async () => {
+	network.reply = (_url, body) => ({ data: (JSON.parse(body ?? "{}") as { input: string[] }).input.map((_, i) => ({ index: i, embedding: [1, i + 1] })) });
+	const store = new MemoryStore();
+	const first = setup({ source: "server", serverUrl: "http://box:11434" }, store);
+	first.consent.allowServer("http://box:11434");
+	await first.index.start();
+	assert.equal(first.app.reads, 2);
+	first.index.stop();
+
+	// The same vault starts again: nothing changed, so no note is read.
+	const second = setup({ source: "server", serverUrl: "http://box:11434" }, store);
+	second.consent.allowServer("http://box:11434");
+	await second.index.start();
+	assert.equal(second.index.status.state, "ready");
+	assert.equal(second.app.reads, 0);
+	second.index.stop();
+
+	// One note changed while Relate was not running: only that note is read.
+	const third = setup({ source: "server", serverUrl: "http://box:11434" }, store);
+	third.consent.allowServer("http://box:11434");
+	third.app.files.get("A.md")!.stat = { ctime: 0, mtime: 99, size: 10 };
+	await third.index.start();
+	assert.equal(third.app.reads, 1);
+	third.index.stop();
+	network.reply = null;
+});
