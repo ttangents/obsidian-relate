@@ -1,6 +1,7 @@
 /* Relate uses Obsidian's own classes and theme variables, so it follows the active theme. */
 
 .relate-muted { color: var(--text-muted); }
+.relate-warning { color: var(--text-warning); }
 
 /* ---------- Connections panel ----------
    Uses the core tree classes (tree-item, tree-item-self, tree-item-flair), so font sizes,
