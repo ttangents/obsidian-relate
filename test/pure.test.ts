@@ -192,13 +192,17 @@ test("a re-stamped date does not change what gets embedded", async () => {
 });
 
 test("release notes match the manifest and announce only what is unseen", async () => {
-  const { RELEASE_NOTES, RELEASE_GROUPS, compareVersions, unseenNotes, laterVersion, COMPANION } = await import("../src/release-notes");
+  const { RELEASE_NOTES, RELEASE_GROUPS, compareVersions, unseenNotes, laterVersion } = await import("../src/release-notes");
   const { readFileSync } = await import("node:fs");
   const manifest = JSON.parse(readFileSync("manifest.json", "utf8")) as { version: string };
   assert.equal(RELEASE_NOTES[0].version, manifest.version);
   for (const [i, n] of RELEASE_NOTES.entries()) {
     assert.ok(n.headline.endsWith("."));
-    const items = [...RELEASE_GROUPS.flatMap((g) => n[g.key] ?? []), ...(n.withCompanion ?? [])];
+    const items = [...RELEASE_GROUPS.flatMap((g) => n[g.key] ?? []), ...(n.worksWith?.items ?? [])];
+    if (n.worksWith) {
+      assert.match(n.worksWith.url, /^https:\/\/community\.obsidian\.md\/plugins\//, "a partner is linked to its directory page");
+      assert.match(n.worksWith.about, /^which /);
+    }
     assert.ok(items.length > 0);
     for (const item of items) assert.ok(/[.)"]$/.test(item), item);
     const next = RELEASE_NOTES[i + 1];
@@ -212,7 +216,6 @@ test("release notes match the manifest and announce only what is unseen", async 
   );
   assert.deepEqual(unseenNotes("0.0.1", ""), [], "never a release newer than the one installed");
   assert.equal(laterVersion("0.5.0", "0.10.0"), "0.10.0");
-  assert.match(COMPANION.url, /^https:\/\/community\.obsidian\.md\/plugins\//);
 });
 
 test("manifest, package and versions agree, in the form the directory requires", async () => {

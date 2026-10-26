@@ -1,13 +1,13 @@
 import { Modal, setIcon, setTooltip } from "obsidian";
 import type RelatePlugin from "../main";
-import { COMPANION, RELEASE_GROUPS, type ReleaseNote } from "../release-notes";
+import { RELEASE_GROUPS, type ReleaseNote } from "../release-notes";
 import { AdoptModal } from "./modals";
 
-/** "Relate works well with Home Cards, my other plugin, which …". The companion is named and linked, never assumed. */
-function companionLine(el: HTMLElement, after: string): void {
+/** "Relate works well with Home Cards, my other plugin, which …". The partner is named and linked, never assumed. */
+function partnerLine(el: HTMLElement, partner: NonNullable<ReleaseNote["worksWith"]>): void {
 	el.appendText("Relate works well with ");
-	el.createEl("a", { text: COMPANION.name, href: COMPANION.url });
-	el.appendText(`, my other plugin, ${COMPANION.about}. ${after}`);
+	el.createEl("a", { text: partner.plugin, href: partner.url });
+	el.appendText(`, my other plugin, ${partner.about}. You don't need it to use Relate. If you use both:`);
 }
 
 /** Shown once, the first time Relate runs in a vault. */
@@ -61,11 +61,12 @@ export class WhatsNewModal extends Modal {
 				const list = release.createEl("ul");
 				for (const item of items) list.createEl("li", { text: item });
 			}
-			if (note.withCompanion?.length) {
-				release.createDiv({ cls: "relate-release-group", text: `Works with ${COMPANION.name}` });
-				companionLine(release.createEl("p", { cls: "relate-release-intro" }), "You don't need it to use Relate. If you use both:");
+			const partner = note.worksWith;
+			if (partner?.items.length) {
+				release.createDiv({ cls: "relate-release-group", text: `Works with ${partner.plugin}` });
+				partnerLine(release.createEl("p", { cls: "relate-release-intro" }), partner);
 				const list = release.createEl("ul");
-				for (const item of note.withCompanion) list.createEl("li", { text: item });
+				for (const item of partner.items) list.createEl("li", { text: item });
 			}
 		}
 		const footer = contentEl.createDiv({ cls: "modal-button-container" });
