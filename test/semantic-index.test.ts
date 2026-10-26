@@ -7,7 +7,7 @@ import { MemoryStore, type VectorStore } from "../src/semantic/store";
 import { DEFAULT_SETTINGS, type RelateSettings } from "../src/settings";
 import type { App } from "obsidian";
 
-function setup(semantic: Partial<RelateSettings["semantic"]>, store: VectorStore = new MemoryStore()) {
+function setup(semantic: Partial<RelateSettings["semantic"]>, store: VectorStore = new MemoryStore(), destroyed: string[] = []) {
 	const app = new FakeApp();
 	app.add("A.md");
 	app.add("B.md");
@@ -16,7 +16,7 @@ function setup(semantic: Partial<RelateSettings["semantic"]>, store: VectorStore
 	// The fake stands in for the slice of Obsidian's App that the index uses.
 	const host: SemanticHost = { app: app as unknown as App, settings, reportError: (where, e) => (errors.push(`${where}: ${String(e)}`), String(e)) };
 	const consent = new Consent({ load: (k) => app.loadLocalStorage(k), save: (k, v) => app.saveLocalStorage(k, v) }, "model@1");
-	const index = new SemanticIndex(host, consent, async () => store);
+	const index = new SemanticIndex(host, consent, { open: async () => store, destroy: async (name) => void destroyed.push(name) });
 	return { app, index, consent, errors };
 }
 
@@ -82,4 +82,17 @@ test("[review 8] a restart reads only the notes whose modification time or size 
 	assert.equal(third.app.reads, 1);
 	third.index.stop();
 	network.reply = null;
+});
+
+test("[review 24] removing search by meaning deletes this device's database, not only its contents", async () => {
+	const destroyed: string[] = [];
+	const { index, app, consent } = setup({ source: "builtin" }, new MemoryStore(), destroyed);
+	consent.allowModel();
+	await index.start();
+	await index.remove();
+	assert.equal(destroyed.length, 1);
+	assert.equal(destroyed[0], `relate-${String(app.loadLocalStorage("relate-store-id"))}`);
+	assert.equal(consent.model, false, "the device is asked again before any new download");
+	assert.equal(index.status.state, "off");
+	index.stop();
 });
