@@ -32,7 +32,7 @@ export type { RelateApi } from "./api";
 export default class RelatePlugin extends Plugin {
 	/** The settings in use: the store's object, which a reload from sync updates in place. */
 	settings!: RelateSettings;
-	private store = new SettingsStore({ load: () => this.loadData(), save: (data) => this.saveData(data) });
+	private store!: SettingsStore;
 	index!: EdgeIndex;
 	writer!: Writer;
 	history!: History;
@@ -172,7 +172,7 @@ export default class RelatePlugin extends Plugin {
 		const message = e instanceof Error ? `${e.message}\n${e.stack ?? ""}` : String(e);
 		console.error(`Relate (${where}):`, e);
 		this.settings.errors = [...(this.settings.errors ?? []), { time: Date.now(), where, message }].slice(-5);
-		void this.saveData(this.settings);
+		void this.saveSettings();
 		return e instanceof Error ? e.message : String(e);
 	}
 
@@ -212,18 +212,31 @@ export default class RelatePlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
+		this.store = new SettingsStore({
+			load: () => this.loadData(),
+			save: (data) => this.saveData(data),
+			files: this.files(),
+			dataPath: this.pluginPath("data.json"),
+			backupPath: this.pluginPath("data.backup.json"),
+		});
 		await this.store.load();
 		this.settings = this.store.settings;
 		const { problems } = this.store;
 		if (problems.length) {
 			this.settings.errors = [...this.settings.errors, { time: Date.now(), where: "Settings file", message: problems.join(" ") }].slice(-5);
-			new Notice(`Relate found problems in its settings file and used safe values instead: ${problems[0]}`, 10000);
+			new Notice(`Relate found problems in its settings file and used safe values instead: ${problems[0]} A copy of the original goes to data.backup.json in Relate's plugin folder.`, 12000);
 		}
 	}
 
+	/** Saves the settings. A failure, such as a backup that cannot be written, is shown and leaves the file as it was. */
 	async saveSettings(): Promise<void> {
 		this.sidesCache = null;
-		await this.store.save();
+		try {
+			await this.store.save();
+		} catch (e) {
+			console.error("Relate could not save its settings:", e);
+			new Notice(`Relate could not save its settings: ${e instanceof Error ? e.message : String(e)}`, 10000);
+		}
 	}
 
 	/**
