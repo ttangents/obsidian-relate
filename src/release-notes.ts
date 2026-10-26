@@ -35,12 +35,14 @@ export interface ReleaseNote {
 	};
 }
 
+/** The groups a release's items fall into, in the order they show. */
 export const RELEASE_GROUPS = [
 	{ key: "new", label: "New" },
 	{ key: "improved", label: "Improved" },
 	{ key: "fixed", label: "Fixed" },
 ] as const satisfies readonly { key: keyof ReleaseNote; label: string }[];
 
+/** Every release's notes, newest first. The newest must match manifest.json; the tests check. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
 	{
 		version: "1.0.1",
@@ -92,6 +94,7 @@ export function compareVersions(a: string, b: string): number {
 	return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
 }
 
+/** The later of two versions. */
 export function laterVersion(a: string, b: string): string {
 	return compareVersions(a, b) >= 0 ? a : b;
 }

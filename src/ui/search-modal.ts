@@ -14,6 +14,7 @@ function chipText(chip: Chip): string {
 /** How long search waits after the last keystroke before it sends a query to the user's server. */
 const SERVER_PAUSE_MS = 300;
 
+/** Relate's search box, which shows the phrases it understood as chips and links results on Shift and Enter. */
 export class SearchModal extends SuggestModal<SearchResult> {
 	private chipsEl: HTMLElement;
 	private lastQuery = "";

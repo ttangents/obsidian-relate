@@ -12,8 +12,10 @@ import { basename as name } from "./links";
 import type { AddOptions, AddResult } from "./writer";
 import { computeHealth, findLoops, findNeeds, pathUp, upStep, type Conflict, type Health, type Missing } from "./health";
 
+/** Check links' findings, re-exported for the interface code. */
 export type { Conflict, Health, Loop, Missing } from "./health";
 
+/** Delays the sync engine waits, in milliseconds. Tests shorten them. */
 export const TIMING = {
 	/** Wait this long after a note's last change before mirroring, so half-typed links are never mirrored. */
 	settle: 2000,
@@ -34,6 +36,7 @@ export interface Outcome {
 	error: string | null;
 }
 
+/** What reversing recorded changes did. */
 export interface UndoOutcome {
 	done: number;
 	/** Changes that could not be reversed, kept so the user can try again. */

@@ -7,6 +7,7 @@ import { SearchModal } from "./search-modal";
 import { HealthModal } from "./modals";
 import { basename, noteNamer } from "../links";
 
+/** The relationship browser's view type. */
 export const BROWSER_VIEW = "relate-browser";
 
 interface BrowserState {

@@ -1,3 +1,4 @@
+/** A relationship: two properties that Relate keeps in step on both notes. */
 export interface Relation {
 	/** Property written on the note that starts the link, e.g. "parent". */
 	property: string;
@@ -16,6 +17,7 @@ export interface Relation {
 	required?: string;
 }
 
+/** One link Relate added to or removed from one note. */
 export interface HistoryOp {
 	path: string;
 	prop: string;
@@ -36,8 +38,10 @@ export interface HistoryBatch {
 	count?: number;
 }
 
+/** Which date a search phrase such as "last month" looks at. */
 export type DateSource = "modified" | "created" | "property";
 
+/** Synced settings for search by meaning. Each device still agrees for itself before anything downloads or leaves it. */
 export interface SemanticSettings {
 	/** Search by meaning is on. Each device still asks before it downloads the model. */
 	enabled: boolean;
@@ -48,6 +52,7 @@ export interface SemanticSettings {
 	secretId: string;
 }
 
+/** Search by meaning settings for a new install. */
 export const DEFAULT_SEMANTIC: SemanticSettings = {
 	enabled: false,
 	source: "builtin",
@@ -56,6 +61,7 @@ export const DEFAULT_SEMANTIC: SemanticSettings = {
 	secretId: "",
 };
 
+/** Everything Relate keeps in its settings file. */
 export interface RelateSettings {
 	relations: Relation[];
 	autoSync: boolean;
@@ -74,6 +80,7 @@ export interface RelateSettings {
 	lastShownVersion: string;
 }
 
+/** Settings for a new install. */
 export const DEFAULT_SETTINGS: RelateSettings = {
 	relations: [],
 	autoSync: true,
@@ -88,6 +95,7 @@ export const DEFAULT_SETTINGS: RelateSettings = {
 	lastShownVersion: "",
 };
 
+/** One side of a relationship, seen from the note that holds `prop`. */
 export interface Side {
 	/** Property name on this side. */
 	prop: string;

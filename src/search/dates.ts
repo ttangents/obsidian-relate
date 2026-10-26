@@ -1,3 +1,4 @@
+/** A date phrase found in a query: the range of time it means, its label, and where it sits in the query. */
 export interface DateMatch {
 	from: number;
 	to: number;

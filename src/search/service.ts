@@ -10,6 +10,7 @@ import { fuse } from "../semantic/core";
 import { findPaths, type Step } from "../paths";
 import type { RelationChip } from "./parser";
 
+/** One note search found, with why it matched. */
 export interface SearchResult {
 	file: TFile;
 	reasons: string[];

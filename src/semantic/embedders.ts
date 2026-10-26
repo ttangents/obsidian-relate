@@ -1,6 +1,7 @@
 import { StaticModel, type PackedModel } from "./static-model";
 import { unit } from "./core";
 
+/** Turns texts into unit vectors. A null vector means the text had nothing to embed. */
 export interface Embedder {
 	/** Identifies the model, so vectors from different models are never mixed. */
 	readonly id: string;
@@ -26,6 +27,7 @@ export const BUILTIN = {
 	},
 };
 
+/** The built-in static model, run in plain JavaScript on this device. */
 export class BuiltinEmbedder implements Embedder {
 	readonly id: string;
 	private model: StaticModel;
@@ -40,6 +42,7 @@ export class BuiltinEmbedder implements Embedder {
 	}
 }
 
+/** Sends a JSON body to a URL and returns the parsed reply; Obsidian's requestUrl in the plugin, a fake in tests. */
 export type Fetcher = (url: string, body: string, headers: Record<string, string>) => Promise<unknown>;
 
 /** Any server with an OpenAI-compatible embeddings endpoint, such as Ollama or LM Studio. */

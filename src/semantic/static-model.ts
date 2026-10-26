@@ -100,6 +100,7 @@ export class StaticModel {
 	}
 }
 
+/** The dot product of two vectors of the same length; their cosine similarity when both are unit vectors. */
 export function dot(a: Float32Array, b: Float32Array): number {
 	let s = 0;
 	for (let i = 0; i < a.length; i++) s += a[i] * b[i];
