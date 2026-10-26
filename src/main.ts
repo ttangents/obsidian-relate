@@ -22,7 +22,7 @@ import { History, type PluginFiles } from "./history";
 import { ErrorLog } from "./errors";
 import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
-import { ChangeSignal, EVENT_CHANGED, EVENT_READY, EVENT_REQUEST, EVENT_UNLOAD, createApi, type RelateApi } from "./api";
+import { ApiProvider, ChangeSignal, EVENT_CHANGED, createApi, type RelateApi } from "./api";
 
 export type { RelateApi } from "./api";
 
@@ -52,6 +52,7 @@ export default class RelatePlugin extends Plugin {
 	private settingTab!: RelateSettingTab;
 	private refreshTimer: number | null = null;
 	private changes!: ChangeSignal;
+	private provider!: ApiProvider;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -124,9 +125,10 @@ export default class RelatePlugin extends Plugin {
 		// Other plugins find the API through public workspace events: Relate announces it when ready, answers a
 		// request from a plugin that loaded later, and says when it leaves.
 		const bus: Events = this.app.workspace;
-		this.registerEvent(bus.on(EVENT_REQUEST, () => this.announce()));
+		this.provider = new ApiProvider(bus, this.api);
+		this.registerEvent(this.provider.listen());
 		this.app.workspace.onLayoutReady(() => {
-			this.announce();
+			this.provider.ready();
 			this.sync.start();
 			void this.semantic.start();
 			this.registerEvent(this.app.vault.on("modify", (file) => file instanceof TFile && this.semantic.onModify(file)));
@@ -186,7 +188,7 @@ export default class RelatePlugin extends Plugin {
 
 	onunload(): void {
 		this.unloading = true;
-		this.app.workspace.trigger(EVENT_UNLOAD);
+		this.provider?.unload();
 		// Obsidian removes registered events and views. Notes are left exactly as they are.
 		this.sync?.stop();
 		this.semantic?.stop();
@@ -351,11 +353,6 @@ export default class RelatePlugin extends Plugin {
 		const out = await this.sync.connect(file, side, target);
 		this.sync.report(out, `Linked ${file.basename} and ${target.basename}.`);
 		return out;
-	}
-
-	/** Hands the API to any plugin listening for it. */
-	private announce(): void {
-		if (!this.unloading) this.app.workspace.trigger(EVENT_READY, this.api);
 	}
 
 	refreshViews(): void {
