@@ -1,11 +1,9 @@
 import { Keymap, Modal, Setting, TFile } from "obsidian";
 import type RelatePlugin from "../main";
-import { findPaths, type Step } from "../paths";
+import { BUSY_NOTE, findPaths, type Step } from "../paths";
 import { NotePickerModal } from "./modals";
 import { basename } from "../links";
 
-/** Notes with more connections than this are skipped when "Skip busy notes" is on. */
-export const BUSY_NOTE = 35;
 
 /** Shows the short chains of relationships that join two notes. */
 class PathsModal extends Modal {

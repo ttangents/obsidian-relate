@@ -81,7 +81,17 @@ export class SemanticIndex {
 		return () => this.listeners.delete(fn);
 	}
 
+	/** Goes up whenever what `similar` and `search` can return changes: the state, or any note's vector. */
+	revision = 0;
+
+	/** Tells listeners that vectors changed while the state stayed the same. */
+	private touched(): void {
+		this.revision++;
+		for (const fn of this.listeners) fn();
+	}
+
 	private set(state: SemanticState, message = "", done = 0, total = 0): void {
+		if (state !== this.status.state) this.revision++;
 		this.status = { state, message, done, total };
 		for (const fn of this.listeners) fn();
 	}
@@ -256,6 +266,7 @@ export class SemanticIndex {
 				}
 			});
 			await store.putVectors(rows);
+			this.revision++;
 			this.set("indexing", "", Math.min(i + BATCH, todo.length), todo.length);
 			await new Promise((r) => window.setTimeout(r, Platform.isMobile ? 30 : 0));
 		}
@@ -288,6 +299,7 @@ export class SemanticIndex {
 					this.hashes.set(file.path, hash);
 					if (vec) {
 						this.vectors.set(file.path, vec);
+						this.touched();
 						await store.putVectors([{ path: file.path, hash, model: embedder.id, vec, mtime, size }]);
 					}
 				} catch (e) {
@@ -306,6 +318,7 @@ export class SemanticIndex {
 		if (!vec || !hash || !this.store || !this.embedder) return;
 		this.vectors.set(file.path, vec);
 		this.hashes.set(file.path, hash);
+		this.touched();
 		const store = this.store;
 		const model = this.embedder.id;
 		store
@@ -320,7 +333,7 @@ export class SemanticIndex {
 	}
 
 	onDelete(path: string): void {
-		this.vectors.delete(path);
+		if (this.vectors.delete(path)) this.touched();
 		this.hashes.delete(path);
 		this.stamps.delete(path);
 		const store = this.store;
@@ -337,8 +350,9 @@ export class SemanticIndex {
 		return rank(q, this.vectors, within, limit, 0.1, 0.6);
 	}
 
-	/** Notes closest in meaning to the note at `path`. */
+	/** Notes closest in meaning to the note at `path`, at most `limit`, which is kept between 1 and 50. */
 	similar(path: string, limit = 5): Hit[] {
+		limit = Math.max(1, Math.min(50, Math.floor(limit) || 5));
 		const v = this.vectors.get(path);
 		if (!v) return [];
 		return rank(v, this.vectors, null, limit + 1, SIMILAR_FLOOR, 0).filter((h) => h.path !== path).slice(0, limit);
