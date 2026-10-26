@@ -243,6 +243,8 @@ export class AdoptModal extends Modal {
 	}
 
 	onClose(): void {
+		if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
+		this.previewTimer = null;
 		this.contentEl.empty();
 	}
 }

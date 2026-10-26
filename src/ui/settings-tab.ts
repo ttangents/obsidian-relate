@@ -75,6 +75,13 @@ export class RelateSettingTab extends PluginSettingTab {
 		this.update();
 	}
 
+	/** Obsidian calls this when the settings page closes. A restart still waiting is dropped. */
+	hide(): void {
+		if (this.restartTimer !== null) window.clearTimeout(this.restartTimer);
+		this.restartTimer = null;
+		super.hide();
+	}
+
 	/** Restarts search by meaning once typing pauses, so each keystroke does not start a new index run. */
 	private restartMeaning(delay: number): void {
 		if (this.restartTimer !== null) window.clearTimeout(this.restartTimer);
