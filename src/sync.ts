@@ -485,10 +485,10 @@ export class SyncEngine {
 
 	// ----------------------------------------------------------------- checking and repair
 
-	/** Finds one-way links and broken "only one" rules. Cached until the links change. */
 	/** Counts metadata changes, so "needs a link" results follow moved notes and changed tags. */
 	private metaChanges = 0;
 
+	/** Finds one-way links and broken "only one" rules. Cached until the links change. */
 	health(only?: Set<string>): Health {
 		const key = `${this.plugin.index.revision}|${this.metaChanges}|${JSON.stringify(this.plugin.settings.relations)}`;
 		if (!only && this.healthCache?.key === key) return this.healthCache.value;

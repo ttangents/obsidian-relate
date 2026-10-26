@@ -26,10 +26,10 @@ export function fingerprint(text: string): string {
 	return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36) + text.length.toString(36);
 }
 
-/** Note text as the model should read it: title, descriptive properties and body, without markup. */
 /** An ISO-style date or date and time, such as 2026-10-22T07:51:00+08:00. */
 const DATE = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
+/** Note text as the model should read it: title, descriptive properties and body, without markup. */
 export function readableText(title: string, frontmatter: Record<string, unknown> | undefined, body: string): string {
 	const props: string[] = [];
 	for (const [k, v] of Object.entries(frontmatter ?? {})) {
