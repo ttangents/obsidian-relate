@@ -1,0 +1,11 @@
+{
+	"id": "relate",
+	"version": 1,
+	"events": {
+		"ready": "relate:ready",
+		"request": "relate:request",
+		"unload": "relate:unload",
+		"changed": "relate:changed"
+	},
+	"methods": ["connect", "connections", "disconnect", "meaningReady", "paths", "related", "relationships", "search", "similar"]
+}

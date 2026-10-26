@@ -1,4 +1,4 @@
-import type { TFile } from "obsidian";
+import type { EventRef, Events, TFile } from "obsidian";
 import { BUSY_NOTE, findPaths, type PathGraph, type Step } from "./paths";
 import type { RelationQueries } from "./queries";
 import type { Relation, Side } from "./settings";
@@ -41,6 +41,33 @@ export const EVENT_REQUEST = "relate:request";
 export const EVENT_CHANGED = "relate:changed";
 /** Relate sends this first thing when it unloads; the API is inert from then on. */
 export const EVENT_UNLOAD = "relate:unload";
+
+/**
+ * Relate's side of the handshake over public workspace events. It sends `relate:ready` with the API when Relate is
+ * ready and again on every `relate:request`, so either load order connects, and sends `relate:unload` first thing
+ * when Relate unloads, after which it answers no request.
+ */
+export class ApiProvider {
+	private gone = false;
+
+	constructor(private bus: Events, private api: RelateApi) {}
+
+	/** Starts answering requests. Register the returned reference with the plugin, so unloading removes it. */
+	listen(): EventRef {
+		return this.bus.on(EVENT_REQUEST, () => this.ready());
+	}
+
+	/** Hands the API to every plugin listening. */
+	ready(): void {
+		if (!this.gone) this.bus.trigger(EVENT_READY, this.api);
+	}
+
+	/** Says the API is gone. */
+	unload(): void {
+		this.gone = true;
+		this.bus.trigger(EVENT_UNLOAD);
+	}
+}
 
 /**
  * Sends `relate:changed` once a burst of changes settles, and only when the links or the meaning index really
