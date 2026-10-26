@@ -24,7 +24,7 @@ function activatable(el: HTMLElement, label?: string): HTMLElement {
 }
 
 /** One-line summary of the vault's link problems, or "" when there are none. */
-export function issueSummary(missing: number, choices: number, loops = 0, needs = 0): string {
+function issueSummary(missing: number, choices: number, loops = 0, needs = 0): string {
 	const parts: string[] = [];
 	if (loops) parts.push(plural(loops, "loop", "loops"));
 	if (missing) parts.push(plural(missing, "one-way link", "one-way links"));

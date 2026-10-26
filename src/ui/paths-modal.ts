@@ -8,7 +8,7 @@ import { basename } from "../links";
 export const BUSY_NOTE = 35;
 
 /** Shows the short chains of relationships that join two notes. */
-export class PathsModal extends Modal {
+class PathsModal extends Modal {
 	private prop = "";
 	private skipBusy = true;
 	private listEl!: HTMLElement;
@@ -68,7 +68,7 @@ export class PathsModal extends Modal {
 }
 
 /** Draws "A → home: B → region: C", with each note clickable. */
-export function renderPath(el: HTMLElement, plugin: RelatePlugin, path: Step[], after?: () => void): void {
+function renderPath(el: HTMLElement, plugin: RelatePlugin, path: Step[], after?: () => void): void {
 	el.addClass("relate-path");
 	const note = (p: string) => {
 		const a = el.createEl("a", { cls: "relate-path-note internal-link", text: basename(p), href: "#" });
