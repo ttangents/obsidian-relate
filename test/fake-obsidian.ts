@@ -69,6 +69,10 @@ export class FakeApp {
 	/** Paths whose next read throws. */
 	failReads = new Set<string>();
 	reads = 0;
+	/** Milliseconds before the metadata cache catches up with a write, as when Obsidian is busy re-reading notes. */
+	cacheLag = 1;
+	/** A different lag for some notes. */
+	lag = new Map<string, number>();
 	listeners: ((f: TFile) => void)[] = [];
 	/** Notes whose YAML is currently unparseable, as while a user is mid-edit. */
 	unparsed = new Set<string>();
@@ -157,7 +161,7 @@ export class FakeApp {
 				this.cache.set(f.path, copy(this.fm.get(f.path) ?? {}));
 				for (const l of this.listeners) l(f);
 				this.pending--;
-			}, 1);
+			}, this.lag.get(f.path) ?? this.cacheLag);
 		},
 	};
 }
