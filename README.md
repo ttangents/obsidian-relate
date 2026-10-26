@@ -144,7 +144,7 @@ npm run build   # type check, Obsidian's lint rules, main.js
 npm test        # runs the tests
 ```
 
-`npm run lint` applies [Obsidian's review rules](https://github.com/obsidianmd/eslint-plugin), the checks the community directory runs on each release, to every file in the repository. See [RELEASING.md](RELEASING.md) for the release steps.
+`npm run lint` applies [Obsidian's review rules](https://github.com/obsidianmd/eslint-plugin), the checks the community directory runs on each release, to every file in the repository.
 
 ## License
 

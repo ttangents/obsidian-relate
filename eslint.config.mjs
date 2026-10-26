@@ -11,7 +11,7 @@ const BRANDS = [
 ];
 
 export default defineConfig([
-  globalIgnores(["main.js", "styles.css", "node_modules/", "package-lock.json", "versions.json", "dist/", "playground/"]),
+  globalIgnores(["main.js", "styles.css", "node_modules/", "package-lock.json", "versions.json", "dist/"]),
   {
     languageOptions: {
       globals: { ...globals.browser },
@@ -51,7 +51,7 @@ export default defineConfig([
   // Tests and build scripts run in Node, never in Obsidian: Node's modules
   // and globals are theirs to use, and the scripts report to the console.
   {
-    files: ["test/**/*.ts", "scripts/**/*.mjs", "*.mjs"],
+    files: ["test/**/*.ts", "*.mjs"],
     languageOptions: { globals: { ...globals.node } },
     rules: {
       "obsidianmd/no-nodejs-modules": "off",
