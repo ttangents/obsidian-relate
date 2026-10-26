@@ -91,7 +91,7 @@ export class RelateSettingTab extends PluginSettingTab {
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		const s = this.plugin.settings;
-		return [this.relationships(s), this.setup(s), this.linking(), this.search(s), this.meaning(s), this.releases(), this.history(s)];
+		return [this.relationships(s), this.setup(s), this.linking(), this.search(s), this.meaning(s), this.releases(), this.history()];
 	}
 
 	private relationships(s: RelateSettings): SettingDefinitionItem {
@@ -345,17 +345,17 @@ export class RelateSettingTab extends PluginSettingTab {
 		};
 	}
 
-	private history(s: RelateSettings): SettingDefinitionItem {
+	private history(): SettingDefinitionItem {
 		return {
 			type: "list",
 			heading: "Recent changes",
 			emptyState: "Relate has not changed any notes yet.",
-			items: [...s.history]
+			items: [...this.plugin.history.list()]
 				.reverse()
 				.slice(0, 10)
 				.map((batch) => ({
 					name: batch.label,
-					desc: `${new Date(batch.time).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} · ${plural(batch.ops.length, "change", "changes")}`,
+					desc: `${new Date(batch.time).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} · ${plural(batch.count ?? batch.ops.length, "change", "changes")}`,
 					searchable: false,
 					render: (setting: Setting) => {
 						if (!batch.undoable) return;

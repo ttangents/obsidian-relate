@@ -1,6 +1,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { SettingsStore, mergeHistory, type SettingsIo } from "../src/settings-store";
+import { SettingsStore, type SettingsIo } from "../src/settings-store";
+import { mergeHistory } from "../src/history";
 import type { HistoryBatch } from "../src/settings";
 
 /** A settings file in memory. `disk` is what another device's sync would overwrite. */
@@ -31,7 +32,7 @@ test("[review 1] settings that arrive by sync are taken in, and the next save ke
 	assert.deepEqual(change, { relations: true, meaning: true });
 	assert.equal(store.settings, settings, "the settings object stays the same, so every service sees the change");
 	assert.deepEqual(settings.relations.map((r) => r.property), ["parent", "project"]);
-	assert.deepEqual(settings.history.map((b) => b.id), ["here", "there"], "history from both devices is kept");
+	assert.deepEqual(store.legacyHistory.map((b) => b.id), ["here", "there"], "history from both devices is kept until it moves to its own file");
 
 	// A later change on this device saves without losing the other device's work.
 	settings.autoSync = false;
