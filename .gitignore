@@ -1,8 +1,10 @@
+.DS_Store
 node_modules/
 main.js
 dist/
+build/
 *.log
-.DS_Store
-# Pointers to the design documents in the author's Vibes vault; they stay on this machine.
 CLAUDE.md
 AGENTS.md
+
+# Relate writes styles.css by hand, so it stays tracked.
