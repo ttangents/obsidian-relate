@@ -1,4 +1,4 @@
-import { Notice, TFile, requireApiVersion } from "obsidian";
+import { Notice, requireApiVersion, type TFile } from "obsidian";
 import type RelatePlugin from "../main";
 import type { Side } from "../settings";
 import { baseBlock } from "../bases";
@@ -6,6 +6,7 @@ import { AdoptModal, HealthModal, SidePickerModal, linkAs } from "./modals";
 import { LinkManyModal, NewLinkedNoteModal, linkSelected } from "./linking";
 import { SearchModal } from "./search-modal";
 import { showPaths } from "./paths-modal";
+import { isVaultNote } from "../vault-note";
 
 /** Registers Relate's commands and its file menu entries. None has a default hotkey. */
 export function registerCommands(plugin: RelatePlugin): void {
@@ -15,7 +16,7 @@ export function registerCommands(plugin: RelatePlugin): void {
 		name: "Link this note to another note",
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension !== "md") return false;
+			if (!isVaultNote(plugin.app, file)) return false;
 			if (!checking) linkAs(plugin, file);
 			return true;
 		},
@@ -27,7 +28,7 @@ export function registerCommands(plugin: RelatePlugin): void {
 		name: "Create a new note linked to this note",
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension !== "md") return false;
+			if (!isVaultNote(plugin.app, file)) return false;
 			if (!checking) withSide(file, (s) => new NewLinkedNoteModal(plugin, file, s).open());
 			return true;
 		},
@@ -37,20 +38,20 @@ export function registerCommands(plugin: RelatePlugin): void {
 		name: "Link several notes to this note",
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension !== "md") return false;
+			if (!isVaultNote(plugin.app, file)) return false;
 			if (!checking) withSide(file, (s) => new LinkManyModal(plugin, file, s).open());
 			return true;
 		},
 	});
 	plugin.registerEvent(
 		plugin.app.workspace.on("file-menu", (menu, file) => {
-			if (!(file instanceof TFile) || file.extension !== "md" || !plugin.sides().size) return;
+			if (!isVaultNote(plugin.app, file) || !plugin.sides().size) return;
 			menu.addItem((i) => i.setTitle("Create a linked note…").setIcon("file-plus").setSection("action").onClick(() => withSide(file, (s) => new NewLinkedNoteModal(plugin, file, s).open())));
 		})
 	);
 	plugin.registerEvent(
 		plugin.app.workspace.on("files-menu", (menu, files) => {
-			const notes = files.filter((f): f is TFile => f instanceof TFile && f.extension === "md");
+			const notes = files.filter((f): f is TFile => isVaultNote(plugin.app, f));
 			if (notes.length < 2 || !plugin.sides().size) return;
 			menu.addItem((i) => i.setTitle(`Link ${notes.length} notes to a note…`).setIcon("link").setSection("action").onClick(() => linkSelected(plugin, notes)));
 		})
@@ -62,7 +63,7 @@ export function registerCommands(plugin: RelatePlugin): void {
 		name: "Browse this note's relationships",
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension !== "md") return false;
+			if (!isVaultNote(plugin.app, file)) return false;
 			if (!checking) void plugin.openBrowser(file.path);
 			return true;
 		},
@@ -72,7 +73,7 @@ export function registerCommands(plugin: RelatePlugin): void {
 		name: "How is this note connected to another note?",
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension !== "md" || !plugin.sides().size) return false;
+			if (!isVaultNote(plugin.app, file) || !plugin.sides().size) return false;
 			if (!checking) showPaths(plugin, file);
 			return true;
 		},
@@ -83,7 +84,7 @@ export function registerCommands(plugin: RelatePlugin): void {
 		editorCheckCallback: (checking, editor, ctx) => {
 			const file = ctx.file;
 			// Bases arrived in Obsidian 1.9.
-			if (!file || !plugin.sides().size || !requireApiVersion("1.9.0")) return false;
+			if (!isVaultNote(plugin.app, file) || !plugin.sides().size || !requireApiVersion("1.9.0")) return false;
 			if (!checking) {
 				new SidePickerModal(plugin, file, (side) => editor.replaceSelection(baseBlock(side)), "Choose which related notes to list").open();
 			}
@@ -95,7 +96,7 @@ export function registerCommands(plugin: RelatePlugin): void {
 		name: "Copy a table of notes linked to this note",
 		checkCallback: (checking) => {
 			const file = plugin.app.workspace.getActiveFile();
-			if (!file || file.extension !== "md" || !plugin.sides().size || !requireApiVersion("1.9.0")) return false;
+			if (!isVaultNote(plugin.app, file) || !plugin.sides().size || !requireApiVersion("1.9.0")) return false;
 			if (!checking) {
 				new SidePickerModal(plugin, file, (side) => {
 					void navigator.clipboard.writeText(baseBlock(side)).then(

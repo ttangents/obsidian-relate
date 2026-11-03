@@ -16,7 +16,7 @@ export default defineConfig([
     languageOptions: {
       globals: { ...globals.browser },
       parserOptions: {
-        projectService: { allowDefaultProject: ["manifest.json", "*.mjs"] },
+        projectService: { allowDefaultProject: ["manifest.json", "*.mjs", "scripts/*.mjs"] },
         tsconfigRootDir: import.meta.dirname,
         extraFileExtensions: [".json"],
       },
@@ -51,7 +51,7 @@ export default defineConfig([
   // Tests and build scripts run in Node, never in Obsidian: Node's modules
   // and globals are theirs to use, and the scripts report to the console.
   {
-    files: ["test/**/*.ts", "*.mjs"],
+    files: ["test/**/*.ts", "scripts/**/*.mjs", "*.mjs"],
     languageOptions: { globals: { ...globals.node } },
     rules: {
       "obsidianmd/no-nodejs-modules": "off",

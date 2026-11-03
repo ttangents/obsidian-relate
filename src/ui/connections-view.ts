@@ -1,4 +1,5 @@
 import { ItemView, TFile, WorkspaceLeaf, setIcon, setTooltip } from "obsidian";
+import { isVaultNote } from "../vault-note";
 import { icons } from "./icons";
 import { renderUpdateNotice } from "./whats-new";
 import type RelatePlugin from "../main";
@@ -78,14 +79,18 @@ export class ConnectionsView extends ItemView {
 
 	private setPinned(path: string | null): void {
 		this.pinned = path;
-		if (!path) this.file = this.app.workspace.getActiveFile();
+		if (!path) {
+			const active = this.app.workspace.getActiveFile();
+			this.file = isVaultNote(this.app, active) ? active : null;
+		}
 		this.app.workspace.requestSaveLayout();
 		this.render();
 	}
 
 	private show(file: TFile | null): void {
 		if (this.pinned) return;
-		if (file && file.extension !== "md") return;
+		// A file opened from outside the vault keeps the panel on the last vault note.
+		if (file && !isVaultNote(this.app, file)) return;
 		this.file = file;
 		this.render();
 	}

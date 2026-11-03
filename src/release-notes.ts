@@ -45,6 +45,26 @@ export const RELEASE_GROUPS = [
 /** Every release's notes, newest first. The newest must match manifest.json; the tests check. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
 	{
+		version: "1.0.2",
+		date: "2026-11-03",
+		headline: "Every change can be undone, search ignores accents, and fixes for synced settings.",
+		announce: true,
+		improved: [
+			"Every change Relate makes can be undone from Recent changes, including the links it adds back automatically.",
+			"Search ignores accents on Latin and Greek letters, so \"cafe\" finds \"café\", as Obsidian's own search does.",
+			"After a restart, Relate rereads only the notes that changed.",
+			"Check links stays open until every note that needs a link has one.",
+		],
+		fixed: [
+			"Settings that sync brings from another device are kept.",
+			"Each device asks before it sends notes to an embedding server, and names the server's address.",
+			"A damaged settings file is backed up before Relate starts afresh.",
+			"Removing search by meaning from a device deletes its database there.",
+			"A note opened from outside the vault, with Obsidian's \"Open file from outside the vault\" command, no longer appears in the connections panel, and Relate never links to it or adds links back from it.",
+			"The welcome window no longer mentions Home Cards.",
+		],
+	},
+	{
 		version: "1.0.1",
 		date: "2026-10-22",
 		headline: "Small fixes from Obsidian's review.",

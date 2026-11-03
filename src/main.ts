@@ -23,6 +23,7 @@ import { ErrorLog } from "./errors";
 import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
 import { ApiProvider, ChangeSignal, EVENT_CHANGED, createApi, type RelateApi } from "./api";
+import { isVaultNote } from "./vault-note";
 
 /** The public API type, for plugins that bundle Relate's types. */
 export type { RelateApi } from "./api";
@@ -132,9 +133,11 @@ export default class RelatePlugin extends Plugin {
 			this.provider.ready();
 			this.sync.start();
 			void this.semantic.start();
-			this.registerEvent(this.app.vault.on("modify", (file) => file instanceof TFile && this.semantic.onModify(file)));
+			this.registerEvent(this.app.vault.on("modify", (file) => isVaultNote(this.app, file) && this.semantic.onModify(file)));
 			this.registerEvent(
 				this.app.metadataCache.on("changed", (file) => {
+					// A file opened from outside the vault is never indexed or mirrored.
+					if (!isVaultNote(this.app, file)) return;
 					this.search.markDirty(file.path);
 					this.sync.onChanged(file);
 				})

@@ -2,10 +2,18 @@ const STOP = new Set(
 	"a an and are as at be but by for from has have i in into is it its of on or that the this to was were will with about notes note".split(" ")
 );
 
-/** Splits text into the lowercase words the word index stores. */
+/**
+ * Drops accents from Latin and Greek letters, so "cafe" finds "café" as Obsidian's own search does since 1.15.
+ * Other scripts keep their combining marks, which carry meaning there (Devanagari vowel signs, for one).
+ */
+export function foldAccents(text: string): string {
+	return text.normalize("NFD").replace(/([\p{Script=Latin}\p{Script=Greek}])\p{M}+/gu, "$1").normalize("NFC");
+}
+
+/** Splits text into the lowercase, accent-folded words the word index stores. */
 export function tokenize(text: string): string[] {
 	const out: string[] = [];
-	for (const m of text.toLowerCase().matchAll(/[\p{L}\p{N}]+/gu)) {
+	for (const m of foldAccents(text).toLowerCase().matchAll(/[\p{L}\p{N}]+/gu)) {
 		const t = m[0];
 		if (t.length > 1 && !STOP.has(t)) out.push(t);
 	}
