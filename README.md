@@ -36,9 +36,12 @@ Every change Relate makes shows up under Recent changes in its settings, with an
 - [Searching with Relate](docs/SEARCH.md) explains every search phrase, with examples.
 - [Relate for plugin developers](docs/API.md) shows how another plugin can read and change relationships.
 
-## Plays well with Home Cards
+## Plays well with others
 
-[Home Cards](https://community.obsidian.md/plugins/home-cards), my plugin that gives your vault a start page of note cards, gains a few extras when Relate runs. A section can list the results of a Relate search, a note's page gives each relationship a section of its own, and "Related to recent work" names the relationship behind each card. You don't need Home Cards to use Relate.
+- [Home Cards](https://community.obsidian.md/plugins/home-cards), my plugin that gives your vault a start page of note cards, gains a few extras when Relate runs. A section can list the results of a Relate search, a note's page gives each relationship a section of its own, and "Related to recent work" names the relationship behind each card.
+- [Pagewise](https://community.obsidian.md/plugins/pagewise), my plugin that lays out notes as word-processor pages, lists the notes that link to a page through Relate as labels under its linked mentions.
+
+You don't need either of them to use Relate.
 
 ## Your privacy
 
