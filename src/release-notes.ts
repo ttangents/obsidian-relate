@@ -45,6 +45,15 @@ export const RELEASE_GROUPS = [
 /** Every release's notes, newest first. The newest must match manifest.json; the tests check. */
 export const RELEASE_NOTES: readonly ReleaseNote[] = [
 	{
+		version: "1.0.3",
+		date: "2026-11-08",
+		headline: "The Connections panel no longer appears twice.",
+		announce: false,
+		fixed: [
+			"After an update or a restart, the sidebar could show two Connections panels. Relate now keeps one and closes the other.",
+		],
+	},
+	{
 		version: "1.0.2",
 		date: "2026-11-03",
 		headline: "Every change can be undone, search ignores accents, and fixes for synced settings.",

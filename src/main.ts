@@ -24,6 +24,7 @@ import { RelationQueries } from "./queries";
 import { registerCommands } from "./ui/commands";
 import { ApiProvider, ChangeSignal, EVENT_CHANGED, createApi, type RelateApi } from "./api";
 import { isVaultNote } from "./vault-note";
+import { extraPanels } from "./panels";
 
 /** The public API type, for plugins that bundle Relate's types. */
 export type { RelateApi } from "./api";
@@ -174,9 +175,13 @@ export default class RelatePlugin extends Plugin {
 				void this.activateView(false);
 				new WelcomeModal(this).open();
 			} else if (!this.settings.panelClosed && !this.app.workspace.getLeavesOfType(VIEW_TYPE).length) {
-				// Obsidian closes plugin panels when the plugin is turned off. Put the panel back, unrevealed.
+				// Turning Relate off and on again can leave no panel. Put it back, unrevealed.
 				void this.activateView(false);
 			}
+			// Obsidian restores Relate's panels in place after an update, sometimes after the line above has
+			// already added one, and the saved layout keeps both. Keep one, now and whenever the layout changes.
+			this.keepOnePanel();
+			this.registerEvent(this.app.workspace.on("layout-change", () => this.keepOnePanel()));
 		});
 	}
 
@@ -371,6 +376,16 @@ export default class RelatePlugin extends Plugin {
 				if (leaf.view instanceof BrowserView) leaf.view.render();
 			}
 		}, 150);
+	}
+
+	/** Closes every Connections panel but one, without recording it as the reader closing the panel. */
+	keepOnePanel(): void {
+		if (this.unloading) return;
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+		for (const leaf of extraPanels(leaves, (l) => l.view.containerEl.isShown())) {
+			if (leaf.view instanceof ConnectionsView) leaf.view.duplicate = true;
+			leaf.detach();
+		}
 	}
 
 	async activateView(reveal = true): Promise<void> {

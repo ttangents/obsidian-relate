@@ -112,8 +112,11 @@ export class ConnectionsView extends ItemView {
 		});
 	}
 
+	/** Set when Relate closes this panel as a second copy, so the reader's choice to show the panel stands. */
+	duplicate = false;
+
 	async onClose(): Promise<void> {
-		if (!this.plugin.unloading) {
+		if (!this.plugin.unloading && !this.duplicate) {
 			this.plugin.settings.panelClosed = true;
 			void this.plugin.saveSettings();
 		}
